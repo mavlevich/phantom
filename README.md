@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/yourusername/phantom/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/phantom/actions)
+[![CI](https://github.com/mavlevich/phantom/actions/workflows/ci.yml/badge.svg)](https://github.com/mavlevich/phantom/actions)
 
 ## Philosophy
 
@@ -34,7 +34,7 @@ phantom/
 ```bash
 # Prerequisites: Go 1.22+, Docker, Make
 
-git clone https://github.com/yourusername/phantom
+git clone https://github.com/mavlevich/phantom
 cd phantom
 
 # Start all dependencies (PostgreSQL, Redis)
