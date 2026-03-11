@@ -162,6 +162,34 @@ make migrate-up      # Run pending DB migrations
 make migrate-down    # Rollback last migration
 ```
 
+### Git hooks
+
+Install repository-managed hooks once after cloning:
+
+```bash
+make setup
+make hooks-install
+```
+
+What runs automatically:
+
+- `pre-commit` formats staged Go files and runs `golangci-lint`
+- `pre-push` runs `go vet` and `go test ./...`
+
+Run the same checks manually with:
+
+```bash
+make hooks-pre-commit
+make hooks-pre-push
+```
+
+Temporary bypass for emergencies:
+
+```bash
+PHANTOM_SKIP_HOOKS=1 git commit -m "..."
+PHANTOM_SKIP_HOOKS=1 git push
+```
+
 ---
 
 ## Hot Reload (recommended for development)
@@ -223,6 +251,15 @@ See [docs/SECURITY.md](docs/SECURITY.md) for the cryptographic model.
 - [ ] Push notifications (APNs)
 - [ ] Media messages
 - [ ] Crypto payments integration
+
+---
+
+## Branch Workflow
+
+- Create one branch per feature, fix, or refactor
+- Use explicit names, for example: `feature/auth-register`, `fix/ci-lint`, `refactor/messaging-service`
+- Add or update tests in the same branch as the feature
+- Merge only after local hooks pass and CI is green
 
 ---
 

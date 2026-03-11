@@ -1,7 +1,8 @@
-.PHONY: help run build test test-coverage lint dev-up dev-down migrate-up migrate-down generate clean
+.PHONY: help run build test test-coverage lint dev-up dev-down migrate-up migrate-down generate clean hooks-install hooks-uninstall hooks-pre-commit hooks-pre-push
 
 SERVER_DIR := apps/server
 BINARY_NAME := phantom
+GOLANGCI_LINT_VERSION := v1.64.8
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -89,15 +90,32 @@ generate: ## Generate mocks and protobuf
 # ── Cleanup ────────────────────────────────────────────────────────────────────
 
 clean: ## Remove build artifacts
-	@rm -rf $(SERVER_DIR)/bin $(SERVER_DIR)/coverage.out $(SERVER_DIR)/coverage.html
+	@rm -rf $(SERVER_DIR)/bin $(SERVER_DIR)/coverage.out $(SERVER_DIR)/coverage.filtered.out $(SERVER_DIR)/coverage.html
 	@echo "Cleaned"
 
 # ── Setup (first time) ─────────────────────────────────────────────────────────
 
 setup: ## Install all dev tools
 	go install github.com/air-verse/air@latest
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	go install golang.org/x/vuln/cmd/govulncheck@latest
 	go install golang.org/x/tools/cmd/goimports@latest
 	go install go.uber.org/mock/mockgen@latest
 	@echo "All tools installed"
+
+# ── Git Hooks ──────────────────────────────────────────────────────────────────
+
+hooks-install: ## Configure git to use the repository hooks
+	git config core.hooksPath .githooks
+	@chmod +x .githooks/pre-commit .githooks/pre-push scripts/hooks/*.sh
+	@echo "Git hooks installed from .githooks"
+
+hooks-uninstall: ## Remove repository-managed git hooks
+	git config --unset core.hooksPath || true
+	@echo "Git hooks uninstalled"
+
+hooks-pre-commit: ## Run the same checks as the pre-commit hook
+	@./scripts/hooks/pre-commit.sh
+
+hooks-pre-push: ## Run the same checks as the pre-push hook
+	@./scripts/hooks/pre-push.sh
