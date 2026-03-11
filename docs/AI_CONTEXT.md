@@ -14,7 +14,7 @@ encrypted messages but never has access to plaintext content. Security is not a 
 
 | Layer | Technology | Why |
 |-------|-----------|-----|
-| Backend | Go 1.22+ | Concurrency, single binary deploy, learning |
+| Backend | Go 1.25+ | Concurrency, single binary deploy, learning |
 | Framework | Fiber v2 | Fast, Express-like DX |
 | WebSocket | gorilla/websocket via Fiber | Real-time messaging |
 | Database | PostgreSQL + GORM | Relational, reliable |

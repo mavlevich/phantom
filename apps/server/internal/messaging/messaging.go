@@ -9,10 +9,10 @@ import (
 )
 
 var (
-	ErrMessageNotFound    = errors.New("message not found")
-	ErrRecipientNotFound  = errors.New("recipient not found")
-	ErrMessageTooLarge    = errors.New("message payload too large")
-	ErrInvalidCiphertext  = errors.New("invalid ciphertext format")
+	ErrMessageNotFound   = errors.New("message not found")
+	ErrRecipientNotFound = errors.New("recipient not found")
+	ErrMessageTooLarge   = errors.New("message payload too large")
+	ErrInvalidCiphertext = errors.New("invalid ciphertext format")
 )
 
 // MaxPayloadBytes — max size of an encrypted message payload (1MB)
@@ -21,13 +21,13 @@ const MaxPayloadBytes = 1 * 1024 * 1024
 // Message is what gets stored and relayed
 // IMPORTANT: server never decrypts Ciphertext
 type Message struct {
-	ID           uuid.UUID `json:"id"`
-	SenderID     uuid.UUID `json:"sender_id"`
-	RecipientID  uuid.UUID `json:"recipient_id"`
-	EphemeralKey string    `json:"ephemeral_key"` // base64 X25519 public key
-	Nonce        string    `json:"nonce"`         // base64 12 bytes
-	Ciphertext   string    `json:"ciphertext"`    // base64 ChaCha20-Poly1305 output
-	SentAt       time.Time `json:"sent_at"`
+	ID           uuid.UUID  `json:"id"`
+	SenderID     uuid.UUID  `json:"sender_id"`
+	RecipientID  uuid.UUID  `json:"recipient_id"`
+	EphemeralKey string     `json:"ephemeral_key"` // base64 X25519 public key
+	Nonce        string     `json:"nonce"`         // base64 12 bytes
+	Ciphertext   string     `json:"ciphertext"`    // base64 ChaCha20-Poly1305 output
+	SentAt       time.Time  `json:"sent_at"`
 	DeliveredAt  *time.Time `json:"delivered_at,omitempty"`
 }
 

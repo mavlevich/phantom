@@ -2,7 +2,7 @@
 
 > A fast, end-to-end encrypted messenger built with privacy and security as first-class citizens.
 
-[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/mavlevich/phantom/actions/workflows/ci.yml/badge.svg)](https://github.com/mavlevich/phantom/actions)
 
@@ -19,7 +19,7 @@
 
 | Tool | Version | Install |
 |------|---------|---------|
-| Go | 1.22+ | `brew install go` |
+| Go | 1.25+ | `brew install go` |
 | Docker Desktop | latest | [docker.com](https://www.docker.com/products/docker-desktop/) |
 | Make | built-in | — |
 
@@ -107,7 +107,7 @@ You should see:
 
  ┌───────────────────────────────────────────────────┐
  │                      Phantom                      │
- │                   Fiber v2.52.4                   │
+ │                  Fiber v2.52.12                   │
  │               http://127.0.0.1:8080               │
  └───────────────────────────────────────────────────┘
 ```

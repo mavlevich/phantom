@@ -14,9 +14,9 @@ type Config struct {
 
 	RedisURL string
 
-	JWTSecret           string
-	JWTExpiry           time.Duration
-	RefreshTokenExpiry  time.Duration
+	JWTSecret          string
+	JWTExpiry          time.Duration
+	RefreshTokenExpiry time.Duration
 }
 
 func Load() (*Config, error) {
