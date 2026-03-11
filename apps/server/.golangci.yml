@@ -1,0 +1,35 @@
+run:
+  timeout: 5m
+  go: '1.22'
+
+linters:
+  enable:
+    - errcheck        # check error returns
+    - gosimple        # simplifications
+    - govet           # go vet
+    - ineffassign     # detect unused assignments
+    - staticcheck     # static analysis
+    - unused          # unused code
+    - gofmt           # formatting
+    - goimports       # import ordering
+    - gosec           # security issues
+    - misspell        # spelling errors
+    - prealloc        # slice preallocation hints
+    - contextcheck    # context usage
+    - noctx           # http requests without context
+
+linters-settings:
+  gosec:
+    excludes:
+      - G401  # MD5 (we don't use it for security)
+
+  errcheck:
+    check-type-assertions: true
+
+issues:
+  exclude-rules:
+    # Test files get a bit more leniency
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck

@@ -13,7 +13,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 
-		"github.com/yourusername/phantom/server/config"
+	"github.com/mavlevich/phantom/server/config"
 )
 
 func main() {
