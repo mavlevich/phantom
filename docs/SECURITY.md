@@ -12,14 +12,14 @@
 **What we do NOT protect against (v1):**
 - Compromised client device
 - Malicious app updates
-- Forward secrecy (planned for v2 — Double Ratchet)
+- Forward secrecy (planned for v2 - Double Ratchet)
 
 ---
 
 ## Encryption Stack
 
 ```
-Transport:   TLS 1.3 (server ↔ client)
+Transport:   TLS 1.3 (server <-> client)
 Key Exchange: X25519 (ECDH)
 Encryption:  ChaCha20-Poly1305 (AEAD)
 Key Derivation: HKDF-SHA256
@@ -29,8 +29,8 @@ Signing:     Ed25519
 ### Key Exchange Flow (X3DH simplified)
 
 ```
-1. Alice registers → publishes public key (IK_A) to server
-2. Bob registers   → publishes public key (IK_B) to server
+1. Alice registers -> publishes public key (IK_A) to server
+2. Bob registers   -> publishes public key (IK_B) to server
 
 3. Alice wants to message Bob:
    a. Fetches IK_B from server
@@ -87,17 +87,17 @@ No user data in JWT. Server fetches user from DB on demand.
 
 ## Server-Side Privacy Rules
 
-1. **No message content logging** — enforced at middleware level
-2. **No plaintext storage** — only ciphertext blobs persisted
-3. **Minimal metadata** — store: sender_id, recipient_id, timestamp, delivered_at
-4. **Push notifications** — send only "new message" signal, never content
-5. **IP addresses** — not stored in DB (can appear in server access logs, separate from app logs)
+1. **No message content logging** - enforced at middleware level
+2. **No plaintext storage** - only ciphertext blobs persisted
+3. **Minimal metadata** - store: sender_id, recipient_id, timestamp, delivered_at
+4. **Push notifications** - send only "new message" signal, never content
+5. **IP addresses** - not stored in DB (can appear in server access logs, separate from app logs)
 
 ---
 
 ## Planned for v2
 
-- **Double Ratchet Algorithm** — Forward + Future Secrecy
-- **Sealed Sender** — hide sender metadata from server
-- **Key Transparency** — auditable key log to prevent MITM
-- **Device verification** — safety numbers / QR code verification
+- **Double Ratchet Algorithm** - Forward + Future Secrecy
+- **Sealed Sender** - hide sender metadata from server
+- **Key Transparency** - auditable key log to prevent MITM
+- **Device verification** - safety numbers / QR code verification

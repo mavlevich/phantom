@@ -2,7 +2,7 @@
 
 ## Overview
 
-Phantom is a **zero-knowledge relay** messenger. The server's job is routing — not reading.
+Phantom is a **zero-knowledge relay** messenger. The server's job is routing - not reading.
 
 ## System Diagram
 
@@ -22,7 +22,7 @@ Phantom is a **zero-knowledge relay** messenger. The server's job is routing —
                                   └────────┘  └───────┘
 ```
 
-## Request Flow — Sending a Message
+## Request Flow - Sending a Message
 
 ```
 Alice (iOS)                    Server                    Bob (iOS)
@@ -81,7 +81,7 @@ users
 
 messages
   id, sender_id, recipient_id,
-  ephemeral_key, nonce, ciphertext,  ← all opaque to server
+  ephemeral_key, nonce, ciphertext,  <- all opaque to server
   sent_at, delivered_at
 ```
 
@@ -108,7 +108,7 @@ Every new capability follows this checklist:
 6. Add tests
 
 Examples of planned modules:
-- `internal/groups/` — group chat (Sender Keys protocol)
-- `internal/media/` — video/voice messages (encrypted S3)
-- `internal/payments/` — crypto transfers (blockchain adapter interface)
-- `internal/calls/` — WebRTC signaling
+- `internal/groups/` - group chat (Sender Keys protocol)
+- `internal/media/` - video/voice messages (encrypted S3)
+- `internal/payments/` - crypto transfers (blockchain adapter interface)
+- `internal/calls/` - WebRTC signaling

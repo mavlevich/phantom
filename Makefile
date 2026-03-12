@@ -7,7 +7,7 @@ GOLANGCI_LINT_VERSION := v1.64.8
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-# ── Dev Environment ────────────────────────────────────────────────────────────
+# -- Dev Environment -----------------------------------------------------------
 
 dev-up: ## Start local dependencies (PostgreSQL, Redis)
 	docker compose up -d
@@ -21,7 +21,7 @@ dev-down: ## Stop local dependencies
 dev-logs: ## Follow logs from all services
 	docker compose logs -f
 
-# ── Server ─────────────────────────────────────────────────────────────────────
+# -- Server -------------------------------------------------------------------
 
 run: ## Run server with hot reload (requires: go install github.com/air-verse/air@latest)
 	@cd $(SERVER_DIR) && air
@@ -34,7 +34,7 @@ build: ## Build production binary
 		go build -ldflags="-w -s" -o bin/$(BINARY_NAME) ./cmd/api
 	@echo "Binary built: $(SERVER_DIR)/bin/$(BINARY_NAME)"
 
-# ── Tests ──────────────────────────────────────────────────────────────────────
+# -- Tests --------------------------------------------------------------------
 
 test: ## Run all tests
 	@cd $(SERVER_DIR) && go test ./... -race -timeout 60s
@@ -51,7 +51,7 @@ test-coverage: ## Run tests and open coverage report
 	@echo "Coverage report: $(SERVER_DIR)/coverage.html"
 	@open $(SERVER_DIR)/coverage.html 2>/dev/null || xdg-open $(SERVER_DIR)/coverage.html 2>/dev/null || true
 
-# ── Code Quality ───────────────────────────────────────────────────────────────
+# -- Code Quality -------------------------------------------------------------
 
 lint: ## Run golangci-lint
 	@cd $(SERVER_DIR) && golangci-lint run ./...
@@ -66,7 +66,7 @@ fmt: ## Format all Go code
 security: ## Run vulnerability scanner
 	@cd $(SERVER_DIR) && govulncheck ./...
 
-# ── Database ───────────────────────────────────────────────────────────────────
+# -- Database -----------------------------------------------------------------
 
 migrate-up: ## Run all pending migrations
 	@cd $(SERVER_DIR) && go run ./cmd/migrate up
@@ -81,19 +81,19 @@ migrate-create: ## Create new migration (usage: make migrate-create NAME=add_use
 		touch migrations/$${next}_$(NAME).up.sql migrations/$${next}_$(NAME).down.sql; \
 		echo "Created: migrations/$${next}_$(NAME).{up,down}.sql"
 
-# ── Code Generation ────────────────────────────────────────────────────────────
+# -- Code Generation ----------------------------------------------------------
 
 generate: ## Generate mocks and protobuf
 	@cd $(SERVER_DIR) && go generate ./...
 	@cd packages/proto && buf generate
 
-# ── Cleanup ────────────────────────────────────────────────────────────────────
+# -- Cleanup ------------------------------------------------------------------
 
 clean: ## Remove build artifacts
 	@rm -rf $(SERVER_DIR)/bin $(SERVER_DIR)/coverage.out $(SERVER_DIR)/coverage.filtered.out $(SERVER_DIR)/coverage.html
 	@echo "Cleaned"
 
-# ── Setup (first time) ─────────────────────────────────────────────────────────
+# -- Setup (first time) -------------------------------------------------------
 
 setup: ## Install all dev tools
 	go install github.com/air-verse/air@latest
@@ -103,7 +103,7 @@ setup: ## Install all dev tools
 	go install go.uber.org/mock/mockgen@latest
 	@echo "All tools installed"
 
-# ── Git Hooks ──────────────────────────────────────────────────────────────────
+# -- Git Hooks ----------------------------------------------------------------
 
 hooks-install: ## Configure git to use the repository hooks
 	git config core.hooksPath .githooks
