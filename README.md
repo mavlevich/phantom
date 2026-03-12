@@ -1,4 +1,4 @@
-# Phantom 👻
+# Phantom
 
 > A fast, end-to-end encrypted messenger built with privacy and security as first-class citizens.
 
@@ -8,10 +8,10 @@
 
 ## Philosophy
 
-- **Zero-knowledge server** — the server never sees message content
-- **Security by default** — no opt-in required for E2E encryption
-- **Modular** — every feature is an isolated module, easy to extend
-- **Fast** — built on Go + WebSockets, QUIC-ready
+- **Zero-knowledge server** - the server never sees message content
+- **Security by default** - no opt-in required for E2E encryption
+- **Modular** - every feature is an isolated module, easy to extend
+- **Fast** - built on Go + WebSockets, QUIC-ready
 
 ---
 
@@ -21,7 +21,7 @@
 |------|---------|---------|
 | Go | 1.25+ | `brew install go` |
 | Docker Desktop | latest | [docker.com](https://www.docker.com/products/docker-desktop/) |
-| Make | built-in | — |
+| Make | built-in | - |
 
 First-time dev tools setup:
 ```bash
@@ -116,7 +116,7 @@ You should see:
 
 ```bash
 curl http://localhost:8080/health
-# → {"status":"ok"}
+# -> {"status":"ok"}
 ```
 
 ---
@@ -135,7 +135,7 @@ make dev-down
 ```bash
 docker compose down -v
 ```
-> ⚠️ This deletes all local database data.
+> Warning: this deletes all local database data.
 
 ---
 
@@ -150,7 +150,7 @@ make dev-logs        # Follow Docker logs
 
 make run             # Start server with hot reload (requires air)
 make run-plain       # Start server without hot reload
-make build           # Build production binary → apps/server/bin/phantom
+make build           # Build production binary -> apps/server/bin/phantom
 
 make test            # Run all tests
 make test-unit       # Unit tests only
@@ -210,9 +210,9 @@ Air watches for file changes and automatically rebuilds + restarts the server.
 |----------|---------|-------------|
 | `APP_ENV` | `development` | Environment (`development` / `production`) |
 | `SERVER_PORT` | `8080` | HTTP server port |
-| `DATABASE_URL` | — | PostgreSQL connection string (**required**) |
+| `DATABASE_URL` | - | PostgreSQL connection string (**required**) |
 | `REDIS_URL` | `redis://localhost:6379` | Redis connection string |
-| `JWT_SECRET` | — | JWT signing secret, min 32 chars (**required**) |
+| `JWT_SECRET` | - | JWT signing secret, min 32 chars (**required**) |
 | `JWT_EXPIRY` | `15m` | Access token lifetime |
 | `REFRESH_TOKEN_EXPIRY` | `720h` | Refresh token lifetime (30 days) |
 
@@ -235,6 +235,7 @@ The server acts as an **encrypted relay**. It routes ciphertext blobs but cannot
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full diagrams and flow.
 See [docs/SECURITY.md](docs/SECURITY.md) for the cryptographic model.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the MVP plan and feature sequencing.
 
 ---
 

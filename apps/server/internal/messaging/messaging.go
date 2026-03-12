@@ -15,7 +15,7 @@ var (
 	ErrInvalidCiphertext = errors.New("invalid ciphertext format")
 )
 
-// MaxPayloadBytes — max size of an encrypted message payload (1MB)
+// MaxPayloadBytes - max size of an encrypted message payload (1MB)
 const MaxPayloadBytes = 1 * 1024 * 1024
 
 // Message is what gets stored and relayed

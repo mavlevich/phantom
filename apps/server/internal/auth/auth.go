@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Sentinel errors — callers check these with errors.Is()
+// Sentinel errors - callers check these with errors.Is()
 var (
 	ErrUserAlreadyExists  = errors.New("user already exists")
 	ErrInvalidCredentials = errors.New("invalid credentials")
@@ -17,7 +17,7 @@ var (
 	ErrAccountLocked      = errors.New("account temporarily locked")
 )
 
-// User represents the auth identity (not the full profile — that's in user package)
+// User represents the auth identity (not the full profile - that's in user package)
 type User struct {
 	ID           uuid.UUID
 	Username     string

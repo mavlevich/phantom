@@ -1,4 +1,4 @@
-# Phantom — AI Context & Working Instructions
+# Phantom - AI Context & Working Instructions
 
 This file is the entry point for AI assistants (Claude, Cursor, Copilot, etc.) working on this project.
 Read this before writing any code.
@@ -7,7 +7,7 @@ Read this before writing any code.
 
 ## What Is This Project
 
-Phantom is an end-to-end encrypted messenger. The server is a **zero-knowledge relay** — it routes
+Phantom is an end-to-end encrypted messenger. The server is a **zero-knowledge relay** - it routes
 encrypted messages but never has access to plaintext content. Security is not a feature, it's the foundation.
 
 ## Tech Stack
@@ -29,12 +29,12 @@ encrypted messages but never has access to plaintext content. Security is not a 
 
 ```
 apps/server/
-├── cmd/api/main.go              # Entry point — wire everything together here
-├── internal/                    # Business logic — NOT importable outside server
+├── cmd/api/main.go              # Entry point - wire everything together here
+├── internal/                    # Business logic - NOT importable outside server
 │   ├── auth/                    # Registration, login, JWT, refresh
 │   ├── user/                    # User profiles, contacts, public keys
 │   ├── messaging/               # Core: message routing, hub, delivery
-│   ├── crypto/                  # Key validation, helpers (NO key generation — client-side only)
+│   ├── crypto/                  # Key validation, helpers (NO key generation - client-side only)
 │   ├── presence/                # Online status, typing indicators via Redis
 │   ├── notifications/           # APNs/FCM push
 │   └── storage/                 # Repository interfaces + GORM implementations
@@ -48,25 +48,25 @@ apps/server/
     └── integration/             # Tests with real DB (uses testcontainers)
 ```
 
-## Architecture Rules — ALWAYS Follow
+## Architecture Rules - ALWAYS Follow
 
-1. **Repository pattern** — all DB access goes through interfaces in `storage/`.
+1. **Repository pattern** - all DB access goes through interfaces in `storage/`.
    Never write `db.Where(...)` in a handler or service directly.
 
-2. **Dependency injection** — services receive their dependencies via constructor.
+2. **Dependency injection** - services receive their dependencies via constructor.
    No global variables (except logger).
 
-3. **No business logic in handlers** — handlers only: parse input → call service → write response.
+3. **No business logic in handlers** - handlers only: parse input -> call service -> write response.
 
-4. **Errors** — use sentinel errors + wrapping: `fmt.Errorf("auth.Login: %w", err)`.
+4. **Errors** - use sentinel errors + wrapping: `fmt.Errorf("auth.Login: %w", err)`.
    Define domain errors in each package: `var ErrUserNotFound = errors.New("user not found")`.
 
-5. **Context everywhere** — all functions that do I/O must accept `context.Context` as first arg.
+5. **Context everywhere** - all functions that do I/O must accept `context.Context` as first arg.
 
-6. **NEVER log message content** — logging middleware must explicitly exclude message body fields.
+6. **NEVER log message content** - logging middleware must explicitly exclude message body fields.
    Logs are for metadata only: user IDs, timestamps, error types.
 
-7. **Security-first** — when in doubt, refuse the request. Rate limit aggressively.
+7. **Security-first** - when in doubt, refuse the request. Rate limit aggressively.
 
 ## Module Boundaries
 
@@ -78,8 +78,8 @@ Each `internal/` package should be thought of as a mini-service:
 - Packages may depend on `storage` and `config`, but NOT on each other's internals
 
 ```
-✅ messaging.Service depends on user.Repository (interface)
-❌ messaging.Service imports user.Service directly
+[OK] messaging.Service depends on user.Repository (interface)
+[X] messaging.Service imports user.Service directly
 ```
 
 ## Cryptography Rules
@@ -138,8 +138,8 @@ make build          # Build production binary
 ## Current Development Phase
 
 **Phase 1 (current):** Foundation
-- Project structure ✅
-- CI/CD ✅
+- Project structure done
+- CI/CD done
 - Auth module (in progress)
 - Key exchange (next)
 
@@ -164,7 +164,7 @@ make build          # Build production binary
 
 ## Known Constraints & Decisions
 
-- No ORM magic — use GORM for basic CRUD but write raw SQL for complex queries
+- No ORM magic - use GORM for basic CRUD but write raw SQL for complex queries
 - Redis for presence only, not for message persistence (messages go to Postgres)
-- No message fan-out on server — delivery confirmation is the client's responsibility
+- No message fan-out on server - delivery confirmation is the client's responsibility
 - Push notifications metadata: only "you have a new message", never content
