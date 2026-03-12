@@ -3,7 +3,7 @@
 > A fast, end-to-end encrypted messenger built with privacy and security as first-class citizens.
 
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Proprietary-black.svg)](LICENSE)
 [![CI](https://github.com/mavlevich/phantom/actions/workflows/ci.yml/badge.svg)](https://github.com/mavlevich/phantom/actions)
 
 ## Philosophy
@@ -97,7 +97,9 @@ Both containers should show `healthy`.
 
 ```bash
 cd apps/server
-export $(cat .env | grep -v '^#' | grep -v '^$' | xargs)
+set -a
+. ./.env
+set +a
 go run ./cmd/api
 ```
 
@@ -210,7 +212,7 @@ Air watches for file changes and automatically rebuilds + restarts the server.
 |----------|---------|-------------|
 | `APP_ENV` | `development` | Environment (`development` / `production`) |
 | `SERVER_PORT` | `8080` | HTTP server port |
-| `DATABASE_URL` | - | PostgreSQL connection string (**required**) |
+| `DATABASE_URL` | - | PostgreSQL connection string (**required**, dev default uses `localhost:5433`) |
 | `REDIS_URL` | `redis://localhost:6379` | Redis connection string |
 | `JWT_SECRET` | - | JWT signing secret, min 32 chars (**required**) |
 | `JWT_EXPIRY` | `15m` | Access token lifetime |
@@ -268,13 +270,16 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for the MVP plan and feature sequencing.
 
 **`JWT_SECRET is required` on startup**
 ```bash
-export $(cat .env | grep -v '^#' | grep -v '^$' | xargs)
+cd apps/server
+set -a
+. ./.env
+set +a
 ```
 
 **`docker: command not found`**
 Docker Desktop is not running. Open the Docker app from Applications.
 
-**`connection refused` on port 5432**
+**`connection refused` on port 5433**
 PostgreSQL container is not healthy yet. Wait a few seconds and run `make dev-up` again.
 
 **Port 8080 already in use**
@@ -286,4 +291,4 @@ lsof -ti:8080 | xargs kill
 
 ## License
 
-MIT
+Proprietary. All rights reserved.

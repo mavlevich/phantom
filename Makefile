@@ -24,10 +24,10 @@ dev-logs: ## Follow logs from all services
 # -- Server -------------------------------------------------------------------
 
 run: ## Run server with hot reload (requires: go install github.com/air-verse/air@latest)
-	@cd $(SERVER_DIR) && air
+	@cd $(SERVER_DIR) && set -a && . ./.env && set +a && air
 
 run-plain: ## Run server without hot reload
-	@cd $(SERVER_DIR) && go run ./cmd/api
+	@cd $(SERVER_DIR) && set -a && . ./.env && set +a && go run ./cmd/api
 
 build: ## Build production binary
 	@cd $(SERVER_DIR) && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \

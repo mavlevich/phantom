@@ -1,0 +1,32 @@
+# OS files
+.DS_Store
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+apps/server/.env
+
+# Build and test artifacts
+bin/
+apps/server/bin/
+coverage.out
+coverage.filtered.out
+coverage.html
+*.out
+*.test
+
+# Editor and IDE settings
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local AI / CLI tooling state
+.claude/
+.codex/
+.cursor/
+.windsurf/
+.roo/
+.continue/
+.aider*

@@ -7,7 +7,7 @@ CREATE TABLE users (
     id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     username      VARCHAR(32) NOT NULL UNIQUE,
     password_hash TEXT        NOT NULL,
-    public_key    TEXT        NOT NULL, -- base64 X25519 public key (client-generated)
+    public_key    TEXT        NOT NULL, -- base64 client-generated public key material
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

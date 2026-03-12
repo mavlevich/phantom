@@ -9,11 +9,10 @@ Phantom is a privacy-first, end-to-end encrypted messenger where:
 
 - the server is a blind relay that stores and forwards ciphertext, never plaintext
 - identity is username-only in v1, with no email or phone required
-- payments and premium features may exist later without requiring identity disclosure
 - the system is designed so transport can evolve over time without rewriting business logic
 - trust comes from open code and reviewable architecture, not marketing promises
 
-The long-term direction is bigger than "chat app": a communication platform that can become harder to censor over time through better transport options, stronger metadata protection, and anonymous payment paths. The alpha is not that full vision yet. The alpha is the smallest honest product that proves the core.
+The long-term direction is bigger than "chat app": a communication platform that can become harder to censor over time through better transport options and stronger metadata protection. The alpha is not that full vision yet. The alpha is the smallest honest product that proves the core.
 
 ## Guiding Principles
 
@@ -64,13 +63,19 @@ The MVP is explicitly not:
 These are the default assumptions until we deliberately change them:
 
 - Client strategy: web-first PWA.
+- Web crypto strategy: Web Crypto API first, hidden behind a `CryptoAdapter`.
 - Registration strategy: invite-only.
+- Invite model: admin-issued invites only in alpha.
 - Identity: username-only in v1.
 - Recovery: no full account recovery in alpha; losing local key material should be treated as account loss or forced reset.
 - Device model: one account, one active device model for v1.
+- Public key model: immutable in v1.
 - Delivery states: implement `accepted` and `delivered`; postpone `read`.
+- Message ordering: server-assigned `sequence_number` per conversation, not timestamp-only ordering.
+- Token storage: access token in memory, refresh token in `HttpOnly` cookie.
 - Native iOS: explicitly postponed until protocol and browser UX are stable.
 - Push notifications: postponed until after live alpha usage validates demand.
+- Payments and crypto features: fully out of scope until the core messenger works for real users.
 
 ## Architecture Guardrails
 
@@ -105,17 +110,16 @@ These are the default assumptions until we deliberately change them:
 
 ### Cryptography Notes
 
-- Crypto is still the biggest design fork in the MVP.
-- There are two realistic web-client directions:
-- Web Crypto-first: simpler dependency story, faster to ship, but may require using the most compatible browser-native primitives rather than the ideal protocol wishlist.
-- Library-backed crypto-first: closer to the intended `X25519 + ChaCha20-Poly1305` direction, but adds JS/WASM dependency and startup complexity.
-- The key rule is not "pick the fanciest option"; the key rule is "hide crypto behind a `CryptoAdapter` boundary so it can evolve without touching UI components."
+- The current default is Web Crypto API for the web client.
+- The implementation still has to sit behind a `CryptoAdapter` so it can be swapped later without touching UI components.
+- The immediate goal is reliable client-side encryption for the alpha, not protocol perfection.
 
 ### Data Model Notes
 
 - Single-device alpha is still the most sensible default.
-- Conversation list behavior will matter early, so "derive everything forever from messages" is probably not the right long-term shape.
-- A minimal `conversations` concept is worth serious consideration before message history and chat list APIs solidify.
+- Conversation list behavior will matter early, so derive-from-messages is no longer the default direction.
+- A `conversations` table should exist from the beginning of the messaging phase.
+- Server-assigned `sequence_number` per conversation is the default ordering strategy.
 
 ### Delivery Semantics Notes
 
@@ -160,9 +164,11 @@ PRs:
 Key decisions for this phase:
 
 - No email in v1.
-- Invite-only registration.
+- Invite-only registration with admin-issued invites only.
 - Argon2id for password hashing.
 - Single-device model in alpha.
+- No account recovery in alpha.
+- Public key is immutable in v1.
 
 ## Phase 2 - User Directory
 
@@ -195,8 +201,8 @@ Message lifecycle in MVP:
 Key technical notes:
 
 - Server validates structure, not meaning, of ciphertext payloads.
-- Ordering should not rely on timestamps alone.
-- `conversation_id + sequence_number` is a stronger default than pure timestamp ordering.
+- Ordering does not rely on timestamps alone.
+- `conversation_id + sequence_number` is the default ordering model.
 
 ## Phase 4 - Web Client MVP
 
@@ -218,8 +224,8 @@ Client rules:
 
 - Crypto lives behind a `CryptoAdapter`.
 - Key persistence uses IndexedDB.
-- JWT access token stays in memory where possible.
-- Refresh token strategy should stay as constrained as possible and not leak into UI code.
+- JWT access token stays in memory.
+- Refresh token lives in an `HttpOnly` cookie.
 
 ## Phase 5 - Alpha Deployment
 
@@ -285,14 +291,14 @@ These are directionally good, but they are not immediate product work:
 - mesh / offline transport
 - multi-device support
 - stronger metadata protection
-- anonymous premium payments
+- any payment or premium system
 
 Important notes:
 
 - Transport abstraction should exist early even if only WebSocket is implemented now.
 - Mesh networking is an architectural direction, not an alpha feature.
 - Multi-device support is a key-management project, not just a sync feature.
-- If anonymous payments are added later, the default bias should be toward already-audited privacy-preserving payment rails, not building a custom chain.
+- Payments are explicitly deferred until the core messenger is usable by real people.
 
 ## Security Roadmap
 
@@ -317,18 +323,13 @@ Important notes:
 - key transparency ideas
 - third-party security audit
 
-## Decisions to Revisit Before Phase 3
+## Open Questions After Alpha
 
-These do not need final answers today, but they should be settled before messaging hardens:
+These are worth revisiting later, but they should not block the current auth and messaging slices:
 
-- Is username the only identity, or do we also support email as optional recovery later?
-- Is account recovery supported, or does a lost key mean a new account?
-- Do we materialize a `conversations` table, or derive everything from `messages`?
-- What exactly constitutes `delivered`?
-- How should message ordering behave across reconnects and clock drift?
-- Do we choose a browser-native crypto baseline for v1, or do we adopt a library-backed crypto layer from the start?
-- Should key export / import exist before real users depend on the app?
-- Should push be added before native iOS, or should native iOS come first after alpha?
+- Should optional key export / import exist before a wider beta?
+- Should push notifications land before native iOS, or only after native exists?
+- Does optional recovery ever belong in the product, or should account loss stay the honest default?
 
 ## Rules for Ongoing Development
 
