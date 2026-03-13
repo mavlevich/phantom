@@ -1,4 +1,4 @@
-.PHONY: help run build test test-coverage lint dev-up dev-down migrate-up migrate-down generate clean hooks-install hooks-uninstall hooks-pre-commit hooks-pre-push
+.PHONY: help run build test test-coverage check-coverage lint dev-up dev-down migrate-up migrate-down generate clean hooks-install hooks-uninstall hooks-pre-commit hooks-pre-push
 
 SERVER_DIR := apps/server
 BINARY_NAME := phantom
@@ -50,6 +50,9 @@ test-coverage: ## Run tests and open coverage report
 	@cd $(SERVER_DIR) && go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: $(SERVER_DIR)/coverage.html"
 	@open $(SERVER_DIR)/coverage.html 2>/dev/null || xdg-open $(SERVER_DIR)/coverage.html 2>/dev/null || true
+
+check-coverage: ## Check the non-bootstrap coverage threshold
+	@sh ./scripts/check-coverage.sh
 
 # -- Code Quality -------------------------------------------------------------
 

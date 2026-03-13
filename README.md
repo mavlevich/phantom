@@ -176,13 +176,14 @@ make hooks-install
 What runs automatically:
 
 - `pre-commit` formats staged Go files and runs `golangci-lint`
-- `pre-push` runs `go vet` and `go test ./...`
+- `pre-push` runs `go vet`, `go test ./...`, and the coverage threshold check
 
 Run the same checks manually with:
 
 ```bash
 make hooks-pre-commit
 make hooks-pre-push
+make check-coverage
 ```
 
 Temporary bypass for emergencies:
