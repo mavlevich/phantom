@@ -17,8 +17,11 @@ hook_log "pre-push: running go vet"
   go vet ./...
 )
 
-hook_log "pre-push: running go test"
+hook_log "pre-push: running go test with coverage"
 (
   cd "$SERVER_DIR"
-  go test ./... -race -timeout 60s
+  go test ./... -race -timeout 60s -coverprofile=coverage.out -covermode=atomic
 )
+
+hook_log "pre-push: checking coverage threshold"
+sh "$ROOT_DIR/scripts/check-coverage.sh"

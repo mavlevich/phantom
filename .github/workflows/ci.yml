@@ -77,18 +77,7 @@ jobs:
         run: go test ./... -race -coverprofile=coverage.out -covermode=atomic
 
       - name: Check coverage threshold
-        run: |
-          awk 'NR == 1 || $1 !~ /^github.com\/mavlevich\/phantom\/server\/cmd\/api\//' coverage.out > coverage.filtered.out
-          if [ "$(wc -l < coverage.filtered.out)" -le 1 ]; then
-            echo "No non-bootstrap coverage data found"
-            exit 1
-          fi
-          COVERAGE=$(go tool cover -func=coverage.filtered.out | grep total | awk '{print $3}' | tr -d '%')
-          echo "Coverage: $COVERAGE%"
-          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
-            echo "Coverage $COVERAGE% is below threshold of 70%"
-            exit 1
-          fi
+        run: sh ../../scripts/check-coverage.sh
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4

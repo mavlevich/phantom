@@ -1,4 +1,4 @@
-.PHONY: help run build test test-coverage lint dev-up dev-down migrate-up migrate-down generate clean hooks-install hooks-uninstall hooks-pre-commit hooks-pre-push
+.PHONY: help run build test test-coverage check-coverage lint dev-up dev-down migrate-up migrate-down generate clean hooks-install hooks-uninstall hooks-pre-commit hooks-pre-push
 
 SERVER_DIR := apps/server
 BINARY_NAME := phantom
@@ -24,10 +24,10 @@ dev-logs: ## Follow logs from all services
 # -- Server -------------------------------------------------------------------
 
 run: ## Run server with hot reload (requires: go install github.com/air-verse/air@latest)
-	@cd $(SERVER_DIR) && air
+	@cd $(SERVER_DIR) && set -a && . ./.env && set +a && air
 
 run-plain: ## Run server without hot reload
-	@cd $(SERVER_DIR) && go run ./cmd/api
+	@cd $(SERVER_DIR) && set -a && . ./.env && set +a && go run ./cmd/api
 
 build: ## Build production binary
 	@cd $(SERVER_DIR) && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
@@ -50,6 +50,9 @@ test-coverage: ## Run tests and open coverage report
 	@cd $(SERVER_DIR) && go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: $(SERVER_DIR)/coverage.html"
 	@open $(SERVER_DIR)/coverage.html 2>/dev/null || xdg-open $(SERVER_DIR)/coverage.html 2>/dev/null || true
+
+check-coverage: ## Check the non-bootstrap coverage threshold
+	@sh ./scripts/check-coverage.sh
 
 # -- Code Quality -------------------------------------------------------------
 

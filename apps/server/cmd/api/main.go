@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -12,8 +13,10 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/mavlevich/phantom/server/config"
+	"github.com/mavlevich/phantom/server/internal/auth"
 )
 
 func main() {
@@ -27,6 +30,16 @@ func main() {
 		slog.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
+
+	db, err := openDatabase(cfg.DatabaseURL)
+	if err != nil {
+		slog.Error("failed to connect database", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	authRepo := auth.NewPostgresRepository(db)
+	authService := auth.NewService(authRepo)
 
 	app := fiber.New(fiber.Config{
 		AppName:      "Phantom",
@@ -49,9 +62,9 @@ func main() {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 
-	// TODO: wire routes
-	// httpRouter := http.NewRouter(authService, userService, ...)
-	// httpRouter.Register(app)
+	api := app.Group("/api/v1")
+	auth.RegisterRoutes(api, authService)
+
 	// wsRouter := ws.NewRouter(hub)
 	// wsRouter.Register(app)
 
@@ -79,6 +92,23 @@ func main() {
 	slog.Info("server stopped")
 }
 
+func openDatabase(databaseURL string) (*sql.DB, error) {
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+
+	return db, nil
+}
+
 func errorHandler(env string) fiber.ErrorHandler {
 	return func(c *fiber.Ctx, err error) error {
 		code := fiber.StatusInternalServerError
@@ -89,11 +119,9 @@ func errorHandler(env string) fiber.ErrorHandler {
 			msg = e.Message
 		}
 
-		// In production, never leak internal error details
-		if env == "production" && code == fiber.StatusInternalServerError {
+		if code >= fiber.StatusInternalServerError {
+			slog.Error("request failed", "env", env, "path", c.Path(), "error", err)
 			msg = "internal server error"
-		} else if env != "production" {
-			msg = err.Error()
 		}
 
 		return c.Status(code).JSON(fiber.Map{

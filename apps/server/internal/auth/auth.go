@@ -11,6 +11,12 @@ import (
 // Sentinel errors - callers check these with errors.Is()
 var (
 	ErrUserAlreadyExists  = errors.New("user already exists")
+	ErrInviteNotFound     = errors.New("invite not found")
+	ErrInviteAlreadyUsed  = errors.New("invite already used")
+	ErrInviteExpired      = errors.New("invite expired")
+	ErrInvalidUsername    = errors.New("invalid username")
+	ErrWeakPassword       = errors.New("password does not meet minimum requirements")
+	ErrInvalidPublicKey   = errors.New("invalid public key")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrTokenExpired       = errors.New("token expired")
 	ErrTokenInvalid       = errors.New("token invalid")
@@ -22,48 +28,43 @@ type User struct {
 	ID           uuid.UUID
 	Username     string
 	PasswordHash string
-	PublicKey    []byte // X25519 public key, base64-encoded, set on registration
+	PublicKey    string // Opaque client-generated public key material, stored as provided
 	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
-// Tokens returned after successful auth
-type TokenPair struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int    `json:"expires_in"` // seconds
+type Invite struct {
+	Code         string
+	CreatedBy    string
+	CreatedAt    time.Time
+	ExpiresAt    *time.Time
+	UsedAt       *time.Time
+	UsedByUserID *uuid.UUID
+}
+
+type RegisterResult struct {
+	UserID    uuid.UUID `json:"user_id"`
+	Username  string    `json:"username"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // RegisterInput from client
 type RegisterInput struct {
-	Username  string `json:"username" validate:"required,min=3,max=32,alphanum"`
-	Password  string `json:"password" validate:"required,min=12"`
-	PublicKey string `json:"public_key" validate:"required"` // base64 X25519 public key
-}
-
-// LoginInput from client
-type LoginInput struct {
-	Username string `json:"username" validate:"required"`
-	Password string `json:"password" validate:"required"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	PublicKey  string `json:"public_key"`  // base64-encoded client public key material
+	InviteCode string `json:"invite_code"` // single-use invite
 }
 
 // Service defines the auth business logic contract
 // This interface makes it easy to mock in tests
 type Service interface {
-	Register(ctx context.Context, input RegisterInput) (*TokenPair, error)
-	Login(ctx context.Context, input LoginInput) (*TokenPair, error)
-	Refresh(ctx context.Context, refreshToken string) (*TokenPair, error)
-	Logout(ctx context.Context, refreshToken string) error
-	ValidateAccessToken(ctx context.Context, token string) (uuid.UUID, error)
+	Register(ctx context.Context, input RegisterInput) (*RegisterResult, error)
 }
 
 // Repository defines the storage contract for auth
 type Repository interface {
-	CreateUser(ctx context.Context, user *User) error
 	FindUserByUsername(ctx context.Context, username string) (*User, error)
-	FindUserByID(ctx context.Context, id uuid.UUID) (*User, error)
-
-	StoreRefreshToken(ctx context.Context, userID uuid.UUID, token string, expiry time.Duration) error
-	ValidateRefreshToken(ctx context.Context, token string) (uuid.UUID, error)
-	DeleteRefreshToken(ctx context.Context, token string) error
-	DeleteAllUserTokens(ctx context.Context, userID uuid.UUID) error
+	FindInviteByCode(ctx context.Context, code string) (*Invite, error)
+	CreateUserFromInvite(ctx context.Context, user *User, inviteCode string, usedAt time.Time) error
 }
