@@ -28,7 +28,7 @@ type User struct {
 	ID           uuid.UUID
 	Username     string
 	PasswordHash string
-	PublicKey    string // Opaque client-generated public key material, stored as provided
+	PublicKey    string // Opaque client-generated public key material, normalized to canonical base64 before storage
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -42,10 +42,23 @@ type Invite struct {
 	UsedByUserID *uuid.UUID
 }
 
+type ServiceConfig struct {
+	JWTSecret string
+	JWTExpiry time.Duration
+}
+
 type RegisterResult struct {
 	UserID    uuid.UUID `json:"user_id"`
 	Username  string    `json:"username"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type LoginResult struct {
+	AccessToken string    `json:"access_token"`
+	TokenType   string    `json:"token_type"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	UserID      uuid.UUID `json:"user_id"`
+	Username    string    `json:"username"`
 }
 
 // RegisterInput from client
@@ -56,10 +69,16 @@ type RegisterInput struct {
 	InviteCode string `json:"invite_code"` // single-use invite
 }
 
+type LoginInput struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 // Service defines the auth business logic contract
 // This interface makes it easy to mock in tests
 type Service interface {
 	Register(ctx context.Context, input RegisterInput) (*RegisterResult, error)
+	Login(ctx context.Context, input LoginInput) (*LoginResult, error)
 }
 
 // Repository defines the storage contract for auth

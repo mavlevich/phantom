@@ -120,6 +120,7 @@ These are the default assumptions until we deliberately change them:
 - Conversation list behavior will matter early, so derive-from-messages is no longer the default direction.
 - A `conversations` table should exist from the beginning of the messaging phase.
 - Server-assigned `sequence_number` per conversation is the default ordering strategy.
+- Alpha still exposes the social graph to the server. E2E protects content, not membership and traffic analysis metadata.
 
 ### Delivery Semantics Notes
 
@@ -135,6 +136,7 @@ These are the default assumptions until we deliberately change them:
 - One repeatable deployment matters more than horizontal scale for alpha.
 - One VPS with Go, PostgreSQL, Redis, TLS, and backups is enough for the first private alpha.
 - Monorepo CI needs explicit `cache-dependency-path` and Node 24-compatible GitHub Actions versions to stay boring.
+- Before beta, evaluate `go mod vendor` or a private module proxy for stronger supply-chain control and build reproducibility.
 
 ## Phase 0 - Foundation
 
@@ -158,8 +160,8 @@ Goal: users can register with an invite code, log in, and maintain a session.
 PRs:
 
 1. `feature/auth-register` - invite code model and migration, `auth.Repository`, `auth.Service`, Argon2id password hashing, public key storage, unit tests.
-2. `feature/auth-login` - login, JWT access token, refresh token rotation, logout, account lockout, unit tests.
-3. `feature/auth-http` - register/login/refresh/logout endpoints, JWT middleware, rate limiting, integration tests.
+2. `feature/auth-login` - login, JWT access token, `/auth/login`, unit tests.
+3. `feature/auth-session` - refresh token rotation, logout, account lockout, JWT middleware, rate limiting, integration tests.
 
 Key decisions for this phase:
 
@@ -275,6 +277,8 @@ These are real features, but they should not block shipping:
 - push notifications
 - group chats
 - media messages
+- better contact discovery privacy
+- moderation and compromise-response mechanics
 
 Notes:
 
@@ -282,6 +286,8 @@ Notes:
 - Push should wait until there is evidence that alpha users actually need it.
 - Group chats should wait until 1-to-1 semantics and key lifecycle are stable.
 - Media should come after text, likely starting with the simplest encrypted upload path rather than full-blown rich media.
+- Contact discovery privacy likely means moving beyond public username lookup toward one-time contact codes, invite links, or QR-based exchange.
+- Group moderation and compromise-response need explicit semantics before shipping: removing a member from a group is not enough if key material for the old membership is still valid.
 
 ## Deferred - Long Term
 
@@ -291,6 +297,8 @@ These are directionally good, but they are not immediate product work:
 - mesh / offline transport
 - multi-device support
 - stronger metadata protection
+- safer group membership privacy
+- screenshot deterrence / capture-response features
 - any payment or premium system
 
 Important notes:
@@ -298,6 +306,7 @@ Important notes:
 - Transport abstraction should exist early even if only WebSocket is implemented now.
 - Mesh networking is an architectural direction, not an alpha feature.
 - Multi-device support is a key-management project, not just a sync feature.
+- Screenshot handling is platform-specific and should be treated as a deterrence / response problem, not as a guaranteed protection primitive.
 - Payments are explicitly deferred until the core messenger is usable by real people.
 
 ## Security Roadmap
@@ -330,6 +339,17 @@ These are worth revisiting later, but they should not block the current auth and
 - Should optional key export / import exist before a wider beta?
 - Should push notifications land before native iOS, or only after native exists?
 - Does optional recovery ever belong in the product, or should account loss stay the honest default?
+- Should contact discovery stay username-based, or move to one-time contact codes / QR exchange for lower discoverability?
+- What should the default discoverability model be: public username lookup, code-only discovery, or user-selectable privacy levels?
+- How should compromised-user response work in groups: remove only, remove + rekey, or full group re-issue?
+- Should group membership be readable to the server in v1 groups, or should encrypted membership lists become a v2 requirement?
+- Which screenshot / screen-recording mitigations are worth shipping per platform, and which should remain documented as non-guaranteed deterrents?
+
+## Product Philosophy Notes
+
+- Move fast toward a testable, honest product.
+- Keep the architecture clean enough that later hardening does not require rewriting the core.
+- Prefer a smaller real alpha over a larger speculative design that nobody can use yet.
 
 ## Rules for Ongoing Development
 

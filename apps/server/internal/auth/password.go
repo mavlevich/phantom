@@ -27,6 +27,8 @@ var defaultArgon2IDParams = argon2IDParams{
 	keyLength:   32,
 }
 
+var timingPaddingPasswordHash = mustTimingPaddingPasswordHash()
+
 func HashPassword(password string) (string, error) {
 	return hashPasswordWithParams(password, defaultArgon2IDParams)
 }
@@ -51,6 +53,14 @@ func VerifyPassword(password, encodedHash string) (bool, error) {
 	)
 
 	return subtle.ConstantTimeCompare(hash, otherHash) == 1, nil
+}
+
+func mustTimingPaddingPasswordHash() string {
+	hash, err := hashPasswordWithParams("phantom-login-timing-padding", defaultArgon2IDParams)
+	if err != nil {
+		panic(fmt.Sprintf("build timing padding hash: %v", err))
+	}
+	return hash
 }
 
 func hashPasswordWithParams(password string, params argon2IDParams) (string, error) {

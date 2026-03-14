@@ -5,6 +5,28 @@ set -eu
 ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 SERVER_DIR="$ROOT_DIR/apps/server"
 
+go_bin_dir() {
+  if command -v go >/dev/null 2>&1; then
+    gobin=$(go env GOBIN 2>/dev/null || true)
+    if [ -n "$gobin" ]; then
+      printf '%s\n' "$gobin"
+      return
+    fi
+
+    gopath=$(go env GOPATH 2>/dev/null || true)
+    if [ -n "$gopath" ]; then
+      printf '%s/bin\n' "$gopath"
+      return
+    fi
+  fi
+}
+
+GO_BIN_DIR=$(go_bin_dir)
+if [ -n "${GO_BIN_DIR:-}" ] && [ -d "$GO_BIN_DIR" ]; then
+  PATH="$GO_BIN_DIR:$PATH"
+  export PATH
+fi
+
 hook_log() {
   printf '%s\n' "$1"
 }

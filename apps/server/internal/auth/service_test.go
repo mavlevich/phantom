@@ -371,6 +371,248 @@ func TestRegisterWrapsPasswordHashFailure(t *testing.T) {
 	}
 }
 
+func TestLoginSuccess(t *testing.T) {
+	now := time.Date(2026, 3, 14, 12, 0, 0, 0, time.UTC)
+	userID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	expiresAt := now.Add(15 * time.Minute)
+
+	repo := &registerRepoStub{
+		user: &User{
+			ID:           userID,
+			Username:     "Alice123",
+			PasswordHash: "hashed-password",
+		},
+	}
+
+	svc := &service{
+		repo:         repo,
+		now:          func() time.Time { return now },
+		newID:        uuid.New,
+		hashPassword: HashPassword,
+		verifyPassword: func(password, hash string) (bool, error) {
+			if password != "strong-password-123" || hash != "hashed-password" {
+				t.Fatalf("verifyPassword() got (%q, %q)", password, hash)
+			}
+			return true, nil
+		},
+		issueAccessToken: func(user *User, issuedAt time.Time) (string, time.Time, error) {
+			if user.ID != userID {
+				t.Fatalf("issueAccessToken() user.ID = %v, want %v", user.ID, userID)
+			}
+			if !issuedAt.Equal(now) {
+				t.Fatalf("issueAccessToken() issuedAt = %v, want %v", issuedAt, now)
+			}
+			return "access-token", expiresAt, nil
+		},
+	}
+
+	result, err := svc.Login(context.Background(), LoginInput{
+		Username: "Alice123",
+		Password: "strong-password-123",
+	})
+	if err != nil {
+		t.Fatalf("Login() error = %v", err)
+	}
+	if result.AccessToken != "access-token" {
+		t.Fatalf("Login() access token = %q, want access-token", result.AccessToken)
+	}
+	if result.TokenType != "Bearer" {
+		t.Fatalf("Login() token type = %q, want Bearer", result.TokenType)
+	}
+	if !result.ExpiresAt.Equal(expiresAt) {
+		t.Fatalf("Login() expires_at = %v, want %v", result.ExpiresAt, expiresAt)
+	}
+	if result.UserID != userID {
+		t.Fatalf("Login() user id = %v, want %v", result.UserID, userID)
+	}
+}
+
+func TestLoginRejectsUnknownUser(t *testing.T) {
+	verifyCalls := 0
+	svc := &service{
+		repo: &registerRepoStub{},
+		now:  func() time.Time { return time.Now().UTC() },
+		verifyPassword: func(password, hash string) (bool, error) {
+			verifyCalls++
+			if password != "strong-password-123" {
+				t.Fatalf("verifyPassword() password = %q, want strong-password-123", password)
+			}
+			if hash != timingPaddingPasswordHash {
+				t.Fatalf("verifyPassword() hash = %q, want timing padding hash", hash)
+			}
+			return false, nil
+		},
+		issueAccessToken: func(user *User, issuedAt time.Time) (string, time.Time, error) {
+			t.Fatal("issueAccessToken() should not be called")
+			return "", time.Time{}, nil
+		},
+	}
+
+	_, err := svc.Login(context.Background(), LoginInput{
+		Username: "Alice123",
+		Password: "strong-password-123",
+	})
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("Login() error = %v, want %v", err, ErrInvalidCredentials)
+	}
+	if verifyCalls != 1 {
+		t.Fatalf("verifyPassword() calls = %d, want 1", verifyCalls)
+	}
+}
+
+func TestLoginRejectsWrongPassword(t *testing.T) {
+	svc := &service{
+		repo: &registerRepoStub{
+			user: &User{
+				ID:           uuid.New(),
+				Username:     "Alice123",
+				PasswordHash: "hashed-password",
+			},
+		},
+		now: func() time.Time { return time.Now().UTC() },
+		verifyPassword: func(password, hash string) (bool, error) {
+			return false, nil
+		},
+		issueAccessToken: func(user *User, issuedAt time.Time) (string, time.Time, error) {
+			t.Fatal("issueAccessToken() should not be called")
+			return "", time.Time{}, nil
+		},
+	}
+
+	_, err := svc.Login(context.Background(), LoginInput{
+		Username: "Alice123",
+		Password: "wrong-password",
+	})
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("Login() error = %v, want %v", err, ErrInvalidCredentials)
+	}
+}
+
+func TestLoginRejectsMalformedUsername(t *testing.T) {
+	svc := &service{repo: &registerRepoStub{}}
+
+	_, err := svc.Login(context.Background(), LoginInput{
+		Username: "not valid",
+		Password: "strong-password-123",
+	})
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("Login() error = %v, want %v", err, ErrInvalidCredentials)
+	}
+}
+
+func TestLoginRejectsEmptyPassword(t *testing.T) {
+	svc := &service{repo: &registerRepoStub{}}
+
+	_, err := svc.Login(context.Background(), LoginInput{
+		Username: "Alice123",
+		Password: "   ",
+	})
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("Login() error = %v, want %v", err, ErrInvalidCredentials)
+	}
+}
+
+func TestLoginWrapsRepositoryError(t *testing.T) {
+	repoErr := errors.New("db unavailable")
+	svc := &service{
+		repo: &registerRepoStub{
+			findUserErr: repoErr,
+		},
+	}
+
+	_, err := svc.Login(context.Background(), LoginInput{
+		Username: "Alice123",
+		Password: "strong-password-123",
+	})
+	if err == nil {
+		t.Fatal("Login() error = nil, want wrapped repository error")
+	}
+	if !errors.Is(err, repoErr) {
+		t.Fatalf("Login() error = %v, want wrapped %v", err, repoErr)
+	}
+}
+
+func TestLoginWrapsVerifyPasswordFailure(t *testing.T) {
+	verifyErr := errors.New("hash decode failed")
+	svc := &service{
+		repo: &registerRepoStub{
+			user: &User{
+				ID:           uuid.New(),
+				Username:     "Alice123",
+				PasswordHash: "hashed-password",
+			},
+		},
+		verifyPassword: func(password, hash string) (bool, error) {
+			return false, verifyErr
+		},
+	}
+
+	_, err := svc.Login(context.Background(), LoginInput{
+		Username: "Alice123",
+		Password: "strong-password-123",
+	})
+	if err == nil {
+		t.Fatal("Login() error = nil, want wrapped verify error")
+	}
+	if !errors.Is(err, verifyErr) {
+		t.Fatalf("Login() error = %v, want wrapped %v", err, verifyErr)
+	}
+}
+
+func TestLoginWrapsTimingPaddingVerifyFailure(t *testing.T) {
+	verifyErr := errors.New("padding hash decode failed")
+	svc := &service{
+		repo: &registerRepoStub{},
+		verifyPassword: func(password, hash string) (bool, error) {
+			if hash != timingPaddingPasswordHash {
+				t.Fatalf("verifyPassword() hash = %q, want timing padding hash", hash)
+			}
+			return false, verifyErr
+		},
+	}
+
+	_, err := svc.Login(context.Background(), LoginInput{
+		Username: "Alice123",
+		Password: "strong-password-123",
+	})
+	if err == nil {
+		t.Fatal("Login() error = nil, want wrapped verify error")
+	}
+	if !errors.Is(err, verifyErr) {
+		t.Fatalf("Login() error = %v, want wrapped %v", err, verifyErr)
+	}
+}
+
+func TestLoginWrapsAccessTokenFailure(t *testing.T) {
+	issueErr := errors.New("jwt signer unavailable")
+	svc := &service{
+		repo: &registerRepoStub{
+			user: &User{
+				ID:           uuid.New(),
+				Username:     "Alice123",
+				PasswordHash: "hashed-password",
+			},
+		},
+		verifyPassword: func(password, hash string) (bool, error) {
+			return true, nil
+		},
+		issueAccessToken: func(user *User, issuedAt time.Time) (string, time.Time, error) {
+			return "", time.Time{}, issueErr
+		},
+	}
+
+	_, err := svc.Login(context.Background(), LoginInput{
+		Username: "Alice123",
+		Password: "strong-password-123",
+	})
+	if err == nil {
+		t.Fatal("Login() error = nil, want wrapped token error")
+	}
+	if !errors.Is(err, issueErr) {
+		t.Fatalf("Login() error = %v, want wrapped %v", err, issueErr)
+	}
+}
+
 type registerRepoStub struct {
 	user              *User
 	invite            *Invite

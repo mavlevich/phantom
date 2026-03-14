@@ -1,4 +1,4 @@
-.PHONY: help run build test test-coverage check-coverage lint dev-up dev-down migrate-up migrate-down generate clean hooks-install hooks-uninstall hooks-pre-commit hooks-pre-push
+.PHONY: help env-init dev dev-up dev-down dev-logs run run-plain build test test-coverage check-coverage lint vet fmt security migrate-up migrate-down migrate-create generate clean setup hooks-install hooks-uninstall hooks-pre-commit hooks-pre-push
 
 SERVER_DIR := apps/server
 BINARY_NAME := phantom
@@ -8,6 +8,12 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 # -- Dev Environment -----------------------------------------------------------
+
+env-init: ## Create apps/server/.env if missing and generate a local JWT secret
+	@./scripts/ensure-env.sh
+
+dev: ## Bootstrap env, start dependencies, apply migrations, and run the server
+	@./scripts/dev.sh
 
 dev-up: ## Start local dependencies (PostgreSQL, Redis)
 	docker compose up -d
@@ -24,9 +30,11 @@ dev-logs: ## Follow logs from all services
 # -- Server -------------------------------------------------------------------
 
 run: ## Run server with hot reload (requires: go install github.com/air-verse/air@latest)
+	@./scripts/ensure-env.sh
 	@cd $(SERVER_DIR) && set -a && . ./.env && set +a && air
 
 run-plain: ## Run server without hot reload
+	@./scripts/ensure-env.sh
 	@cd $(SERVER_DIR) && set -a && . ./.env && set +a && go run ./cmd/api
 
 build: ## Build production binary
@@ -72,10 +80,10 @@ security: ## Run vulnerability scanner
 # -- Database -----------------------------------------------------------------
 
 migrate-up: ## Run all pending migrations
-	@cd $(SERVER_DIR) && go run ./cmd/migrate up
+	@./scripts/migrate.sh up
 
 migrate-down: ## Rollback last migration
-	@cd $(SERVER_DIR) && go run ./cmd/migrate down
+	@./scripts/migrate.sh down
 
 migrate-create: ## Create new migration (usage: make migrate-create NAME=add_users_table)
 	@cd $(SERVER_DIR) && \
