@@ -64,44 +64,19 @@ git clone https://github.com/mavlevich/phantom
 cd phantom
 ```
 
-### 2. Configure environment
+### 2. Start local development
 
 ```bash
-cp apps/server/.env.example apps/server/.env
+make dev
 ```
 
-Open `apps/server/.env` and set a JWT secret (min 32 chars):
-```
-JWT_SECRET=your-random-secret-minimum-32-chars
-```
+What `make dev` does:
 
-Generate a secure one with:
-```bash
-openssl rand -hex 32
-```
-
-### 3. Start dependencies (PostgreSQL + Redis)
-
-```bash
-make dev-up
-```
-
-Check they are running:
-```bash
-docker compose ps
-```
-
-Both containers should show `healthy`.
-
-### 4. Start the server
-
-```bash
-cd apps/server
-set -a
-. ./.env
-set +a
-go run ./cmd/api
-```
+- creates `apps/server/.env` from `.env.example` if it is missing
+- generates a random `JWT_SECRET` if the placeholder is still present
+- starts PostgreSQL and Redis
+- applies pending SQL migrations
+- runs the API server
 
 You should see:
 ```
@@ -114,7 +89,7 @@ You should see:
  └───────────────────────────────────────────────────┘
 ```
 
-### 5. Verify
+### 3. Verify
 
 ```bash
 curl http://localhost:8080/health
@@ -149,6 +124,8 @@ Run all commands from the **repo root** (`phantom/`):
 make dev-up          # Start PostgreSQL + Redis
 make dev-down        # Stop PostgreSQL + Redis
 make dev-logs        # Follow Docker logs
+make env-init        # Create apps/server/.env and generate a local JWT secret
+make dev             # One-command local bootstrap: env + Docker + migrations + server
 
 make run             # Start server with hot reload (requires air)
 make run-plain       # Start server without hot reload
@@ -271,10 +248,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for the MVP plan and feature sequencing.
 
 **`JWT_SECRET is required` on startup**
 ```bash
-cd apps/server
-set -a
-. ./.env
-set +a
+make env-init
 ```
 
 **`docker: command not found`**
@@ -282,6 +256,11 @@ Docker Desktop is not running. Open the Docker app from Applications.
 
 **`connection refused` on port 5433**
 PostgreSQL container is not healthy yet. Wait a few seconds and run `make dev-up` again.
+
+**`make run-plain` says `.env` is missing**
+```bash
+make env-init
+```
 
 **Port 8080 already in use**
 ```bash

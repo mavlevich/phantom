@@ -17,6 +17,7 @@ import (
 
 	"github.com/mavlevich/phantom/server/config"
 	"github.com/mavlevich/phantom/server/internal/auth"
+	"github.com/mavlevich/phantom/server/internal/httpapi"
 )
 
 func main() {
@@ -39,14 +40,17 @@ func main() {
 	defer db.Close()
 
 	authRepo := auth.NewPostgresRepository(db)
-	authService := auth.NewService(authRepo)
+	authService := auth.NewService(authRepo, auth.ServiceConfig{
+		JWTSecret: cfg.JWTSecret,
+		JWTExpiry: cfg.JWTExpiry,
+	})
 
 	app := fiber.New(fiber.Config{
 		AppName:      "Phantom",
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		// Never expose error details to client in production
-		ErrorHandler: errorHandler(cfg.Env),
+		ErrorHandler: httpapi.ErrorHandler(slog.Default(), cfg.Env),
 	})
 
 	// Middleware
@@ -107,26 +111,4 @@ func openDatabase(databaseURL string) (*sql.DB, error) {
 	}
 
 	return db, nil
-}
-
-func errorHandler(env string) fiber.ErrorHandler {
-	return func(c *fiber.Ctx, err error) error {
-		code := fiber.StatusInternalServerError
-		msg := "internal server error"
-
-		if e, ok := err.(*fiber.Error); ok {
-			code = e.Code
-			msg = e.Message
-		}
-
-		if code >= fiber.StatusInternalServerError {
-			slog.Error("request failed", "env", env, "path", c.Path(), "error", err)
-			msg = "internal server error"
-		}
-
-		return c.Status(code).JSON(fiber.Map{
-			"data":  nil,
-			"error": msg,
-		})
-	}
 }

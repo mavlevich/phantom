@@ -21,18 +21,31 @@ const (
 var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9]{3,32}$`)
 
 type service struct {
-	repo         Repository
-	now          func() time.Time
-	newID        func() uuid.UUID
-	hashPassword func(string) (string, error)
+	repo             Repository
+	now              func() time.Time
+	newID            func() uuid.UUID
+	hashPassword     func(string) (string, error)
+	verifyPassword   func(string, string) (bool, error)
+	issueAccessToken func(*User, time.Time) (string, time.Time, error)
 }
 
-func NewService(repo Repository) Service {
+func NewService(repo Repository, configs ...ServiceConfig) Service {
+	cfg := ServiceConfig{}
+	if len(configs) > 0 {
+		cfg = configs[0]
+	}
+
 	return &service{
-		repo:         repo,
-		now:          func() time.Time { return time.Now().UTC() },
-		newID:        uuid.New,
-		hashPassword: HashPassword,
+		repo:           repo,
+		now:            func() time.Time { return time.Now().UTC() },
+		newID:          uuid.New,
+		hashPassword:   HashPassword,
+		verifyPassword: VerifyPassword,
+		issueAccessToken: newAccessTokenIssuer(
+			cfg.JWTSecret,
+			cfg.JWTExpiry,
+			uuid.New,
+		),
 	}
 }
 
@@ -66,7 +79,7 @@ func (s *service) Register(ctx context.Context, input RegisterInput) (*RegisterR
 		return nil, ErrInviteNotFound
 	}
 
-	now := s.now()
+	now := s.currentTime()
 	if invite.UsedAt != nil {
 		return nil, ErrInviteAlreadyUsed
 	}
@@ -82,13 +95,13 @@ func (s *service) Register(ctx context.Context, input RegisterInput) (*RegisterR
 		return nil, ErrUserAlreadyExists
 	}
 
-	passwordHash, err := s.hashPassword(input.Password)
+	passwordHash, err := s.passwordHasher()(input.Password)
 	if err != nil {
 		return nil, fmt.Errorf("auth.Register: hash password: %w", err)
 	}
 
 	user := &User{
-		ID:           s.newID(),
+		ID:           s.uuidGenerator()(),
 		Username:     username,
 		PasswordHash: passwordHash,
 		PublicKey:    publicKey,
@@ -118,6 +131,49 @@ func (s *service) Register(ctx context.Context, input RegisterInput) (*RegisterR
 	}, nil
 }
 
+func (s *service) Login(ctx context.Context, input LoginInput) (*LoginResult, error) {
+	username, err := normalizeLoginUsername(input.Username)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(input.Password) == "" {
+		return nil, ErrInvalidCredentials
+	}
+
+	user, err := s.repo.FindUserByUsername(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("auth.Login: find user by username: %w", err)
+	}
+	if user == nil {
+		if _, err := s.passwordVerifier()(input.Password, timingPaddingPasswordHash); err != nil {
+			return nil, fmt.Errorf("auth.Login: verify timing padding password: %w", err)
+		}
+		return nil, ErrInvalidCredentials
+	}
+
+	ok, err := s.passwordVerifier()(input.Password, user.PasswordHash)
+	if err != nil {
+		return nil, fmt.Errorf("auth.Login: verify password: %w", err)
+	}
+	if !ok {
+		return nil, ErrInvalidCredentials
+	}
+
+	now := s.currentTime()
+	accessToken, expiresAt, err := s.accessTokenIssuer()(user, now)
+	if err != nil {
+		return nil, fmt.Errorf("auth.Login: issue access token: %w", err)
+	}
+
+	return &LoginResult{
+		AccessToken: accessToken,
+		TokenType:   "Bearer",
+		ExpiresAt:   expiresAt,
+		UserID:      user.ID,
+		Username:    user.Username,
+	}, nil
+}
+
 func validateUsername(username string) (string, error) {
 	trimmed := strings.TrimSpace(username)
 	if !usernamePattern.MatchString(trimmed) {
@@ -131,6 +187,14 @@ func validatePassword(password string) error {
 		return ErrWeakPassword
 	}
 	return nil
+}
+
+func normalizeLoginUsername(username string) (string, error) {
+	trimmed := strings.TrimSpace(username)
+	if !usernamePattern.MatchString(trimmed) {
+		return "", ErrInvalidCredentials
+	}
+	return trimmed, nil
 }
 
 func validatePublicKey(encoded string) (string, error) {
@@ -156,4 +220,39 @@ func validatePublicKey(encoded string) (string, error) {
 	}
 
 	return "", ErrInvalidPublicKey
+}
+
+func (s *service) currentTime() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now().UTC()
+}
+
+func (s *service) uuidGenerator() func() uuid.UUID {
+	if s.newID != nil {
+		return s.newID
+	}
+	return uuid.New
+}
+
+func (s *service) passwordHasher() func(string) (string, error) {
+	if s.hashPassword != nil {
+		return s.hashPassword
+	}
+	return HashPassword
+}
+
+func (s *service) passwordVerifier() func(string, string) (bool, error) {
+	if s.verifyPassword != nil {
+		return s.verifyPassword
+	}
+	return VerifyPassword
+}
+
+func (s *service) accessTokenIssuer() func(*User, time.Time) (string, time.Time, error) {
+	if s.issueAccessToken != nil {
+		return s.issueAccessToken
+	}
+	return newAccessTokenIssuer("", 15*time.Minute, s.uuidGenerator())
 }

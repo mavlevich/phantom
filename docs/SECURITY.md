@@ -65,15 +65,15 @@ Server stores and forwards this blob. Cannot decrypt.
 ## Authentication
 
 - **Registration:** username + password (Argon2id hashing, never stored plaintext)
-- **Login:** returns `access_token` (JWT, 15min) + `refresh_token` (opaque, 30 days)
-- **Refresh:** rotate refresh token on use (one-time-use)
-- **Revocation:** refresh tokens stored in Redis, can be invalidated server-side
-- **Rate limiting:** 5 login attempts per minute per IP, then 15min lockout
+- **Login:** returns `access_token` (JWT, 15min)
+- **Credential privacy:** login returns generic credential errors and uses timing padding on unknown usernames to reduce account enumeration via response timing
+- **Next auth slice:** refresh token rotation, revocation, rate limiting, and account lockout
 
 ### JWT Claims
 
 ```json
 {
+  "iss": "phantom",
   "sub": "user_uuid",
   "iat": 1234567890,
   "exp": 1234568790,
@@ -92,6 +92,10 @@ No user data in JWT. Server fetches user from DB on demand.
 3. **Minimal metadata** - store: sender_id, recipient_id, timestamp, delivered_at
 4. **Push notifications** - send only "new message" signal, never content
 5. **IP addresses** - not stored in DB (can appear in server access logs, separate from app logs)
+
+Important limitation for alpha:
+
+- E2E encryption protects message content, but not the full social graph. The server can still know which account talks to which account, and group membership remains metadata unless later phases explicitly hide it.
 
 ---
 

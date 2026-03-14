@@ -10,6 +10,7 @@ import (
 func RegisterRoutes(router fiber.Router, service Service) {
 	authGroup := router.Group("/auth")
 	authGroup.Post("/register", registerHandler(service))
+	authGroup.Post("/login", loginHandler(service))
 }
 
 func registerHandler(service Service) fiber.Handler {
@@ -31,6 +32,25 @@ func registerHandler(service Service) fiber.Handler {
 	}
 }
 
+func loginHandler(service Service) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		var input LoginInput
+		if err := c.BodyParser(&input); err != nil {
+			return fiber.NewError(http.StatusBadRequest, "invalid request body")
+		}
+
+		result, err := service.Login(c.UserContext(), input)
+		if err != nil {
+			return mapLoginError(err)
+		}
+
+		return c.Status(http.StatusOK).JSON(fiber.Map{
+			"data":  result,
+			"error": nil,
+		})
+	}
+}
+
 func mapRegisterError(err error) error {
 	switch {
 	case errors.Is(err, ErrUserAlreadyExists):
@@ -43,6 +63,17 @@ func mapRegisterError(err error) error {
 		return fiber.NewError(http.StatusBadRequest, "password must be at least 12 characters")
 	case errors.Is(err, ErrInvalidPublicKey):
 		return fiber.NewError(http.StatusBadRequest, "invalid public key")
+	default:
+		return err
+	}
+}
+
+func mapLoginError(err error) error {
+	switch {
+	case errors.Is(err, ErrAccountLocked):
+		return fiber.NewError(http.StatusUnauthorized, "invalid username or password")
+	case errors.Is(err, ErrInvalidCredentials):
+		return fiber.NewError(http.StatusUnauthorized, "invalid username or password")
 	default:
 		return err
 	}
