@@ -43,8 +43,10 @@ type Invite struct {
 }
 
 type ServiceConfig struct {
-	JWTSecret string
-	JWTExpiry time.Duration
+	JWTSecret          string
+	JWTExpiry          time.Duration
+	RefreshTokenExpiry time.Duration
+	SessionStore       SessionStore
 }
 
 type RegisterResult struct {
@@ -54,11 +56,13 @@ type RegisterResult struct {
 }
 
 type LoginResult struct {
-	AccessToken string    `json:"access_token"`
-	TokenType   string    `json:"token_type"`
-	ExpiresAt   time.Time `json:"expires_at"`
-	UserID      uuid.UUID `json:"user_id"`
-	Username    string    `json:"username"`
+	AccessToken      string    `json:"access_token"`
+	TokenType        string    `json:"token_type"`
+	ExpiresAt        time.Time `json:"expires_at"`
+	UserID           uuid.UUID `json:"user_id"`
+	Username         string    `json:"username"`
+	RefreshToken     string    `json:"-"`
+	RefreshExpiresAt time.Time `json:"-"`
 }
 
 // RegisterInput from client
@@ -74,16 +78,41 @@ type LoginInput struct {
 	Password string `json:"password"`
 }
 
+type RefreshInput struct {
+	RefreshToken string
+}
+
+type LogoutInput struct {
+	RefreshToken string
+}
+
 // Service defines the auth business logic contract
 // This interface makes it easy to mock in tests
 type Service interface {
 	Register(ctx context.Context, input RegisterInput) (*RegisterResult, error)
 	Login(ctx context.Context, input LoginInput) (*LoginResult, error)
+	Refresh(ctx context.Context, input RefreshInput) (*LoginResult, error)
+	Logout(ctx context.Context, input LogoutInput) error
 }
 
 // Repository defines the storage contract for auth
 type Repository interface {
 	FindUserByUsername(ctx context.Context, username string) (*User, error)
+	FindUserByID(ctx context.Context, id uuid.UUID) (*User, error)
 	FindInviteByCode(ctx context.Context, code string) (*Invite, error)
 	CreateUserFromInvite(ctx context.Context, user *User, inviteCode string, usedAt time.Time) error
+}
+
+type RefreshSession struct {
+	UserID uuid.UUID
+}
+
+type SessionStore interface {
+	StoreRefreshToken(ctx context.Context, tokenHash string, userID uuid.UUID, expiresAt time.Time) error
+	ConsumeRefreshToken(ctx context.Context, tokenHash string) (*RefreshSession, error)
+	RevokeRefreshToken(ctx context.Context, tokenHash string) error
+	IsAccountLocked(ctx context.Context, username string) (bool, error)
+	RegisterFailedLogin(ctx context.Context, username string, now time.Time) (bool, error)
+	ClearFailedLogins(ctx context.Context, username string) error
+	AllowRequest(ctx context.Context, bucket string, limit int, window time.Duration) (bool, error)
 }

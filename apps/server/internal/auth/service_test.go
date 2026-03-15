@@ -375,6 +375,8 @@ func TestLoginSuccess(t *testing.T) {
 	now := time.Date(2026, 3, 14, 12, 0, 0, 0, time.UTC)
 	userID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 	expiresAt := now.Add(15 * time.Minute)
+	refreshExpiresAt := now.Add(30 * 24 * time.Hour)
+	sessionStore := &sessionStoreStub{}
 
 	repo := &registerRepoStub{
 		user: &User{
@@ -386,6 +388,7 @@ func TestLoginSuccess(t *testing.T) {
 
 	svc := &service{
 		repo:         repo,
+		sessionStore: sessionStore,
 		now:          func() time.Time { return now },
 		newID:        uuid.New,
 		hashPassword: HashPassword,
@@ -403,6 +406,12 @@ func TestLoginSuccess(t *testing.T) {
 				t.Fatalf("issueAccessToken() issuedAt = %v, want %v", issuedAt, now)
 			}
 			return "access-token", expiresAt, nil
+		},
+		issueRefreshToken: func(issuedAt time.Time) (string, string, time.Time, error) {
+			if !issuedAt.Equal(now) {
+				t.Fatalf("issueRefreshToken() issuedAt = %v, want %v", issuedAt, now)
+			}
+			return "refresh-token", "refresh-token-hash", refreshExpiresAt, nil
 		},
 	}
 
@@ -425,13 +434,33 @@ func TestLoginSuccess(t *testing.T) {
 	if result.UserID != userID {
 		t.Fatalf("Login() user id = %v, want %v", result.UserID, userID)
 	}
+	if result.RefreshToken != "refresh-token" {
+		t.Fatalf("Login() refresh token = %q, want refresh-token", result.RefreshToken)
+	}
+	if !result.RefreshExpiresAt.Equal(refreshExpiresAt) {
+		t.Fatalf("Login() refresh expires_at = %v, want %v", result.RefreshExpiresAt, refreshExpiresAt)
+	}
+	if sessionStore.storedRefreshTokenHash != "refresh-token-hash" {
+		t.Fatalf("stored refresh token hash = %q, want refresh-token-hash", sessionStore.storedRefreshTokenHash)
+	}
+	if sessionStore.storedRefreshUserID != userID {
+		t.Fatalf("stored refresh token user id = %v, want %v", sessionStore.storedRefreshUserID, userID)
+	}
+	if !sessionStore.storedRefreshExpiry.Equal(refreshExpiresAt) {
+		t.Fatalf("stored refresh token expiry = %v, want %v", sessionStore.storedRefreshExpiry, refreshExpiresAt)
+	}
+	if len(sessionStore.clearedUsernames) != 1 || sessionStore.clearedUsernames[0] != "Alice123" {
+		t.Fatalf("cleared usernames = %v, want [Alice123]", sessionStore.clearedUsernames)
+	}
 }
 
 func TestLoginRejectsUnknownUser(t *testing.T) {
 	verifyCalls := 0
+	sessionStore := &sessionStoreStub{}
 	svc := &service{
-		repo: &registerRepoStub{},
-		now:  func() time.Time { return time.Now().UTC() },
+		repo:         &registerRepoStub{},
+		sessionStore: sessionStore,
+		now:          func() time.Time { return time.Now().UTC() },
 		verifyPassword: func(password, hash string) (bool, error) {
 			verifyCalls++
 			if password != "strong-password-123" {
@@ -458,9 +487,13 @@ func TestLoginRejectsUnknownUser(t *testing.T) {
 	if verifyCalls != 1 {
 		t.Fatalf("verifyPassword() calls = %d, want 1", verifyCalls)
 	}
+	if len(sessionStore.failedUsernames) != 1 || sessionStore.failedUsernames[0] != "Alice123" {
+		t.Fatalf("failed usernames = %v, want [Alice123]", sessionStore.failedUsernames)
+	}
 }
 
 func TestLoginRejectsWrongPassword(t *testing.T) {
+	sessionStore := &sessionStoreStub{}
 	svc := &service{
 		repo: &registerRepoStub{
 			user: &User{
@@ -469,7 +502,8 @@ func TestLoginRejectsWrongPassword(t *testing.T) {
 				PasswordHash: "hashed-password",
 			},
 		},
-		now: func() time.Time { return time.Now().UTC() },
+		sessionStore: sessionStore,
+		now:          func() time.Time { return time.Now().UTC() },
 		verifyPassword: func(password, hash string) (bool, error) {
 			return false, nil
 		},
@@ -485,6 +519,9 @@ func TestLoginRejectsWrongPassword(t *testing.T) {
 	})
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("Login() error = %v, want %v", err, ErrInvalidCredentials)
+	}
+	if len(sessionStore.failedUsernames) != 1 || sessionStore.failedUsernames[0] != "Alice123" {
+		t.Fatalf("failed usernames = %v, want [Alice123]", sessionStore.failedUsernames)
 	}
 }
 
@@ -529,6 +566,41 @@ func TestLoginWrapsRepositoryError(t *testing.T) {
 	}
 	if !errors.Is(err, repoErr) {
 		t.Fatalf("Login() error = %v, want wrapped %v", err, repoErr)
+	}
+}
+
+func TestLoginRejectsLockedAccount(t *testing.T) {
+	sessionStore := &sessionStoreStub{locked: true}
+	svc := &service{
+		repo:         &registerRepoStub{},
+		sessionStore: sessionStore,
+	}
+
+	_, err := svc.Login(context.Background(), LoginInput{
+		Username: "Alice123",
+		Password: "strong-password-123",
+	})
+	if !errors.Is(err, ErrAccountLocked) {
+		t.Fatalf("Login() error = %v, want %v", err, ErrAccountLocked)
+	}
+}
+
+func TestLoginReturnsAccountLockedWhenThresholdReached(t *testing.T) {
+	sessionStore := &sessionStoreStub{failedLoginLocked: true}
+	svc := &service{
+		repo:         &registerRepoStub{},
+		sessionStore: sessionStore,
+		verifyPassword: func(password, hash string) (bool, error) {
+			return false, nil
+		},
+	}
+
+	_, err := svc.Login(context.Background(), LoginInput{
+		Username: "Alice123",
+		Password: "strong-password-123",
+	})
+	if !errors.Is(err, ErrAccountLocked) {
+		t.Fatalf("Login() error = %v, want %v", err, ErrAccountLocked)
 	}
 }
 
@@ -613,10 +685,131 @@ func TestLoginWrapsAccessTokenFailure(t *testing.T) {
 	}
 }
 
+func TestLoginWrapsRefreshTokenFailure(t *testing.T) {
+	issueErr := errors.New("refresh generator unavailable")
+	svc := &service{
+		repo: &registerRepoStub{
+			user: &User{
+				ID:           uuid.New(),
+				Username:     "Alice123",
+				PasswordHash: "hashed-password",
+			},
+		},
+		verifyPassword: func(password, hash string) (bool, error) {
+			return true, nil
+		},
+		issueAccessToken: func(user *User, issuedAt time.Time) (string, time.Time, error) {
+			return "access-token", issuedAt.Add(15 * time.Minute), nil
+		},
+		issueRefreshToken: func(issuedAt time.Time) (string, string, time.Time, error) {
+			return "", "", time.Time{}, issueErr
+		},
+	}
+
+	_, err := svc.Login(context.Background(), LoginInput{
+		Username: "Alice123",
+		Password: "strong-password-123",
+	})
+	if err == nil {
+		t.Fatal("Login() error = nil, want wrapped refresh token error")
+	}
+	if !errors.Is(err, issueErr) {
+		t.Fatalf("Login() error = %v, want wrapped %v", err, issueErr)
+	}
+}
+
+func TestRefreshSuccess(t *testing.T) {
+	now := time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC)
+	userID := uuid.MustParse("66666666-6666-6666-6666-666666666666")
+	sessionStore := &sessionStoreStub{
+		consumedSession: &RefreshSession{UserID: userID},
+	}
+	repo := &registerRepoStub{
+		userByID: &User{
+			ID:           userID,
+			Username:     "Alice123",
+			PasswordHash: "hashed-password",
+		},
+	}
+
+	svc := &service{
+		repo:         repo,
+		sessionStore: sessionStore,
+		now:          func() time.Time { return now },
+		issueAccessToken: func(user *User, issuedAt time.Time) (string, time.Time, error) {
+			return "new-access-token", issuedAt.Add(15 * time.Minute), nil
+		},
+		issueRefreshToken: func(issuedAt time.Time) (string, string, time.Time, error) {
+			return "new-refresh-token", "new-refresh-token-hash", issuedAt.Add(30 * 24 * time.Hour), nil
+		},
+	}
+
+	result, err := svc.Refresh(context.Background(), RefreshInput{RefreshToken: "old-refresh-token"})
+	if err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+	if result.AccessToken != "new-access-token" {
+		t.Fatalf("Refresh() access token = %q, want new-access-token", result.AccessToken)
+	}
+	if result.RefreshToken != "new-refresh-token" {
+		t.Fatalf("Refresh() refresh token = %q, want new-refresh-token", result.RefreshToken)
+	}
+	if sessionStore.consumedRefreshTokenHash != hashRefreshToken("old-refresh-token") {
+		t.Fatalf("consumed refresh token hash = %q, want %q", sessionStore.consumedRefreshTokenHash, hashRefreshToken("old-refresh-token"))
+	}
+	if sessionStore.storedRefreshTokenHash != "new-refresh-token-hash" {
+		t.Fatalf("stored refresh token hash = %q, want new-refresh-token-hash", sessionStore.storedRefreshTokenHash)
+	}
+}
+
+func TestRefreshRejectsMissingToken(t *testing.T) {
+	svc := &service{}
+
+	_, err := svc.Refresh(context.Background(), RefreshInput{})
+	if !errors.Is(err, ErrTokenInvalid) {
+		t.Fatalf("Refresh() error = %v, want %v", err, ErrTokenInvalid)
+	}
+}
+
+func TestRefreshRejectsConsumedToken(t *testing.T) {
+	svc := &service{
+		sessionStore: &sessionStoreStub{},
+	}
+
+	_, err := svc.Refresh(context.Background(), RefreshInput{RefreshToken: "missing"})
+	if !errors.Is(err, ErrTokenInvalid) {
+		t.Fatalf("Refresh() error = %v, want %v", err, ErrTokenInvalid)
+	}
+}
+
+func TestLogoutRevokesRefreshToken(t *testing.T) {
+	sessionStore := &sessionStoreStub{}
+	svc := &service{
+		sessionStore: sessionStore,
+	}
+
+	if err := svc.Logout(context.Background(), LogoutInput{RefreshToken: "refresh-token"}); err != nil {
+		t.Fatalf("Logout() error = %v", err)
+	}
+	if sessionStore.revokedRefreshTokenHash != hashRefreshToken("refresh-token") {
+		t.Fatalf("revoked refresh token hash = %q, want %q", sessionStore.revokedRefreshTokenHash, hashRefreshToken("refresh-token"))
+	}
+}
+
+func TestLogoutWithoutRefreshTokenIsNoop(t *testing.T) {
+	svc := &service{}
+
+	if err := svc.Logout(context.Background(), LogoutInput{}); err != nil {
+		t.Fatalf("Logout() error = %v", err)
+	}
+}
+
 type registerRepoStub struct {
 	user              *User
+	userByID          *User
 	invite            *Invite
 	findUserErr       error
+	findUserByIDErr   error
 	findInviteErr     error
 	createErr         error
 	createdUser       *User
@@ -628,6 +821,19 @@ type registerRepoStub struct {
 func (r *registerRepoStub) FindUserByUsername(ctx context.Context, username string) (*User, error) {
 	r.findUserCalls++
 	return r.user, r.findUserErr
+}
+
+func (r *registerRepoStub) FindUserByID(ctx context.Context, id uuid.UUID) (*User, error) {
+	if r.findUserByIDErr != nil {
+		return nil, r.findUserByIDErr
+	}
+	if r.userByID != nil && r.userByID.ID == id {
+		return r.userByID, nil
+	}
+	if r.user != nil && r.user.ID == id {
+		return r.user, nil
+	}
+	return nil, nil
 }
 
 func (r *registerRepoStub) FindInviteByCode(ctx context.Context, code string) (*Invite, error) {
@@ -646,6 +852,82 @@ func (r *registerRepoStub) CreateUserFromInvite(ctx context.Context, user *User,
 	r.createdInviteCode = inviteCode
 	r.usedAt = usedAt
 	return nil
+}
+
+type sessionStoreStub struct {
+	locked                   bool
+	failedLoginLocked        bool
+	lockErr                  error
+	failedLoginErr           error
+	clearFailedErr           error
+	storeRefreshErr          error
+	consumeRefreshErr        error
+	revokeRefreshErr         error
+	allowRequestErr          error
+	consumedSession          *RefreshSession
+	failedUsernames          []string
+	clearedUsernames         []string
+	storedRefreshTokenHash   string
+	storedRefreshUserID      uuid.UUID
+	storedRefreshExpiry      time.Time
+	consumedRefreshTokenHash string
+	revokedRefreshTokenHash  string
+}
+
+func (s *sessionStoreStub) StoreRefreshToken(ctx context.Context, tokenHash string, userID uuid.UUID, expiresAt time.Time) error {
+	if s.storeRefreshErr != nil {
+		return s.storeRefreshErr
+	}
+	s.storedRefreshTokenHash = tokenHash
+	s.storedRefreshUserID = userID
+	s.storedRefreshExpiry = expiresAt
+	return nil
+}
+
+func (s *sessionStoreStub) ConsumeRefreshToken(ctx context.Context, tokenHash string) (*RefreshSession, error) {
+	if s.consumeRefreshErr != nil {
+		return nil, s.consumeRefreshErr
+	}
+	s.consumedRefreshTokenHash = tokenHash
+	return s.consumedSession, nil
+}
+
+func (s *sessionStoreStub) RevokeRefreshToken(ctx context.Context, tokenHash string) error {
+	if s.revokeRefreshErr != nil {
+		return s.revokeRefreshErr
+	}
+	s.revokedRefreshTokenHash = tokenHash
+	return nil
+}
+
+func (s *sessionStoreStub) IsAccountLocked(ctx context.Context, username string) (bool, error) {
+	if s.lockErr != nil {
+		return false, s.lockErr
+	}
+	return s.locked, nil
+}
+
+func (s *sessionStoreStub) RegisterFailedLogin(ctx context.Context, username string, now time.Time) (bool, error) {
+	if s.failedLoginErr != nil {
+		return false, s.failedLoginErr
+	}
+	s.failedUsernames = append(s.failedUsernames, username)
+	return s.failedLoginLocked, nil
+}
+
+func (s *sessionStoreStub) ClearFailedLogins(ctx context.Context, username string) error {
+	if s.clearFailedErr != nil {
+		return s.clearFailedErr
+	}
+	s.clearedUsernames = append(s.clearedUsernames, username)
+	return nil
+}
+
+func (s *sessionStoreStub) AllowRequest(ctx context.Context, bucket string, limit int, window time.Duration) (bool, error) {
+	if s.allowRequestErr != nil {
+		return false, s.allowRequestErr
+	}
+	return true, nil
 }
 
 func mustPublicKey(t *testing.T) string {

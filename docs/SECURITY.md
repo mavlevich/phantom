@@ -65,9 +65,11 @@ Server stores and forwards this blob. Cannot decrypt.
 ## Authentication
 
 - **Registration:** username + password (Argon2id hashing, never stored plaintext)
-- **Login:** returns `access_token` (JWT, 15min)
+- **Login:** returns `access_token` (JWT, 15min) and rotates an opaque refresh token in an `HttpOnly` cookie
+- **Refresh:** one-time-use refresh token rotation backed by Redis session state
+- **Logout:** revokes the current refresh token and clears the cookie
 - **Credential privacy:** login returns generic credential errors and uses timing padding on unknown usernames to reduce account enumeration via response timing
-- **Next auth slice:** refresh token rotation, revocation, rate limiting, and account lockout
+- **Rate limiting and lockout:** auth endpoints are throttled, and repeated failed logins can trigger temporary account lockout
 
 ### JWT Claims
 

@@ -66,3 +66,42 @@ func TestNewAccessTokenIssuerRejectsMissingSecret(t *testing.T) {
 		t.Fatal("issuer() error = nil, want configuration error")
 	}
 }
+
+func TestParseAccessTokenSuccess(t *testing.T) {
+	now := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
+	userID := uuid.MustParse("55555555-5555-5555-5555-555555555555")
+	tokenID := uuid.MustParse("66666666-6666-6666-6666-666666666666")
+	issuer := newAccessTokenIssuer("test-secret-key-minimum-32-chars-long", 15*time.Minute, func() uuid.UUID {
+		return tokenID
+	})
+
+	tokenString, _, err := issuer(&User{ID: userID}, now)
+	if err != nil {
+		t.Fatalf("issuer() error = %v", err)
+	}
+
+	claims, err := parseAccessToken("test-secret-key-minimum-32-chars-long", tokenString, now)
+	if err != nil {
+		t.Fatalf("parseAccessToken() error = %v", err)
+	}
+	if claims.Subject != userID.String() {
+		t.Fatalf("claims.Subject = %q, want %q", claims.Subject, userID.String())
+	}
+	if claims.Issuer != accessTokenIssuer {
+		t.Fatalf("claims.Issuer = %q, want %q", claims.Issuer, accessTokenIssuer)
+	}
+}
+
+func TestParseAccessTokenRejectsExpiredToken(t *testing.T) {
+	now := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
+	issuer := newAccessTokenIssuer("test-secret-key-minimum-32-chars-long", time.Minute, uuid.New)
+	tokenString, _, err := issuer(&User{ID: uuid.New()}, now)
+	if err != nil {
+		t.Fatalf("issuer() error = %v", err)
+	}
+
+	_, err = parseAccessToken("test-secret-key-minimum-32-chars-long", tokenString, now.Add(2*time.Minute))
+	if err != ErrTokenExpired {
+		t.Fatalf("parseAccessToken() error = %v, want %v", err, ErrTokenExpired)
+	}
+}

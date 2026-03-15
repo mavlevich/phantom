@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,8 @@ import (
 )
 
 const accessTokenIssuer = "phantom"
+
+type accessTokenClaims = jwt.RegisteredClaims
 
 func newAccessTokenIssuer(secret string, expiry time.Duration, newTokenID func() uuid.UUID) func(*User, time.Time) (string, time.Time, error) {
 	if expiry <= 0 {
@@ -40,4 +43,35 @@ func newAccessTokenIssuer(secret string, expiry time.Duration, newTokenID func()
 
 		return signed, expiresAt, nil
 	}
+}
+
+func parseAccessToken(secret, tokenString string, now time.Time) (*accessTokenClaims, error) {
+	if secret == "" || tokenString == "" {
+		return nil, ErrTokenInvalid
+	}
+
+	claims := &accessTokenClaims{}
+	parsed, err := jwt.ParseWithClaims(
+		tokenString,
+		claims,
+		func(token *jwt.Token) (any, error) {
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
+			}
+			return []byte(secret), nil
+		},
+		jwt.WithTimeFunc(func() time.Time { return now }),
+		jwt.WithIssuer(accessTokenIssuer),
+	)
+	if err != nil {
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			return nil, ErrTokenExpired
+		}
+		return nil, ErrTokenInvalid
+	}
+	if !parsed.Valid {
+		return nil, ErrTokenInvalid
+	}
+
+	return claims, nil
 }

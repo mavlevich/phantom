@@ -60,6 +60,47 @@ func (r *postgresRepository) FindUserByUsername(ctx context.Context, username st
 	return &user, nil
 }
 
+func (r *postgresRepository) FindUserByID(ctx context.Context, id uuid.UUID) (*User, error) {
+	const query = `
+		SELECT id, username, password_hash, public_key, created_at, updated_at
+		FROM users
+		WHERE id = $1
+	`
+
+	var (
+		rawID     string
+		user      User
+		createdAt time.Time
+		updatedAt time.Time
+	)
+
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&rawID,
+		&user.Username,
+		&user.PasswordHash,
+		&user.PublicKey,
+		&createdAt,
+		&updatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("query user by id: %w", err)
+	}
+
+	userID, err := uuid.Parse(rawID)
+	if err != nil {
+		return nil, fmt.Errorf("parse user id: %w", err)
+	}
+
+	user.ID = userID
+	user.CreatedAt = createdAt
+	user.UpdatedAt = updatedAt
+
+	return &user, nil
+}
+
 func (r *postgresRepository) FindInviteByCode(ctx context.Context, code string) (*Invite, error) {
 	const query = `
 		SELECT code, created_by, created_at, expires_at, used_at, used_by_user_id

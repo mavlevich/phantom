@@ -21,12 +21,14 @@ const (
 var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9]{3,32}$`)
 
 type service struct {
-	repo             Repository
-	now              func() time.Time
-	newID            func() uuid.UUID
-	hashPassword     func(string) (string, error)
-	verifyPassword   func(string, string) (bool, error)
-	issueAccessToken func(*User, time.Time) (string, time.Time, error)
+	repo              Repository
+	sessionStore      SessionStore
+	now               func() time.Time
+	newID             func() uuid.UUID
+	hashPassword      func(string) (string, error)
+	verifyPassword    func(string, string) (bool, error)
+	issueAccessToken  func(*User, time.Time) (string, time.Time, error)
+	issueRefreshToken func(time.Time) (string, string, time.Time, error)
 }
 
 func NewService(repo Repository, configs ...ServiceConfig) Service {
@@ -37,6 +39,7 @@ func NewService(repo Repository, configs ...ServiceConfig) Service {
 
 	return &service{
 		repo:           repo,
+		sessionStore:   cfg.SessionStore,
 		now:            func() time.Time { return time.Now().UTC() },
 		newID:          uuid.New,
 		hashPassword:   HashPassword,
@@ -46,6 +49,7 @@ func NewService(repo Repository, configs ...ServiceConfig) Service {
 			cfg.JWTExpiry,
 			uuid.New,
 		),
+		issueRefreshToken: newRefreshTokenGenerator(cfg.RefreshTokenExpiry),
 	}
 }
 
@@ -140,6 +144,14 @@ func (s *service) Login(ctx context.Context, input LoginInput) (*LoginResult, er
 		return nil, ErrInvalidCredentials
 	}
 
+	locked, err := s.sessionStateStore().IsAccountLocked(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("auth.Login: check account lock: %w", err)
+	}
+	if locked {
+		return nil, ErrAccountLocked
+	}
+
 	user, err := s.repo.FindUserByUsername(ctx, username)
 	if err != nil {
 		return nil, fmt.Errorf("auth.Login: find user by username: %w", err)
@@ -148,7 +160,7 @@ func (s *service) Login(ctx context.Context, input LoginInput) (*LoginResult, er
 		if _, err := s.passwordVerifier()(input.Password, timingPaddingPasswordHash); err != nil {
 			return nil, fmt.Errorf("auth.Login: verify timing padding password: %w", err)
 		}
-		return nil, ErrInvalidCredentials
+		return nil, s.recordFailedLogin(ctx, username)
 	}
 
 	ok, err := s.passwordVerifier()(input.Password, user.PasswordHash)
@@ -156,7 +168,11 @@ func (s *service) Login(ctx context.Context, input LoginInput) (*LoginResult, er
 		return nil, fmt.Errorf("auth.Login: verify password: %w", err)
 	}
 	if !ok {
-		return nil, ErrInvalidCredentials
+		return nil, s.recordFailedLogin(ctx, username)
+	}
+
+	if err := s.sessionStateStore().ClearFailedLogins(ctx, username); err != nil {
+		return nil, fmt.Errorf("auth.Login: clear failed login count: %w", err)
 	}
 
 	now := s.currentTime()
@@ -164,14 +180,82 @@ func (s *service) Login(ctx context.Context, input LoginInput) (*LoginResult, er
 	if err != nil {
 		return nil, fmt.Errorf("auth.Login: issue access token: %w", err)
 	}
+	refreshToken, refreshTokenHash, refreshExpiresAt, err := s.refreshTokenIssuer()(now)
+	if err != nil {
+		return nil, fmt.Errorf("auth.Login: issue refresh token: %w", err)
+	}
+	if err := s.sessionStateStore().StoreRefreshToken(ctx, refreshTokenHash, user.ID, refreshExpiresAt); err != nil {
+		return nil, fmt.Errorf("auth.Login: store refresh token: %w", err)
+	}
 
 	return &LoginResult{
-		AccessToken: accessToken,
-		TokenType:   "Bearer",
-		ExpiresAt:   expiresAt,
-		UserID:      user.ID,
-		Username:    user.Username,
+		AccessToken:      accessToken,
+		TokenType:        "Bearer",
+		ExpiresAt:        expiresAt,
+		UserID:           user.ID,
+		Username:         user.Username,
+		RefreshToken:     refreshToken,
+		RefreshExpiresAt: refreshExpiresAt,
 	}, nil
+}
+
+func (s *service) Refresh(ctx context.Context, input RefreshInput) (*LoginResult, error) {
+	refreshToken := strings.TrimSpace(input.RefreshToken)
+	if refreshToken == "" {
+		return nil, ErrTokenInvalid
+	}
+
+	session, err := s.sessionStateStore().ConsumeRefreshToken(ctx, hashRefreshToken(refreshToken))
+	if err != nil {
+		return nil, fmt.Errorf("auth.Refresh: consume refresh token: %w", err)
+	}
+	if session == nil {
+		return nil, ErrTokenInvalid
+	}
+
+	user, err := s.repo.FindUserByID(ctx, session.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("auth.Refresh: find user by id: %w", err)
+	}
+	if user == nil {
+		return nil, ErrTokenInvalid
+	}
+
+	now := s.currentTime()
+	accessToken, expiresAt, err := s.accessTokenIssuer()(user, now)
+	if err != nil {
+		return nil, fmt.Errorf("auth.Refresh: issue access token: %w", err)
+	}
+	newRefreshToken, refreshTokenHash, refreshExpiresAt, err := s.refreshTokenIssuer()(now)
+	if err != nil {
+		return nil, fmt.Errorf("auth.Refresh: issue refresh token: %w", err)
+	}
+	if err := s.sessionStateStore().StoreRefreshToken(ctx, refreshTokenHash, user.ID, refreshExpiresAt); err != nil {
+		return nil, fmt.Errorf("auth.Refresh: store refresh token: %w", err)
+	}
+
+	return &LoginResult{
+		AccessToken:      accessToken,
+		TokenType:        "Bearer",
+		ExpiresAt:        expiresAt,
+		UserID:           user.ID,
+		Username:         user.Username,
+		RefreshToken:     newRefreshToken,
+		RefreshExpiresAt: refreshExpiresAt,
+	}, nil
+}
+
+func (s *service) Logout(ctx context.Context, input LogoutInput) error {
+	refreshToken := strings.TrimSpace(input.RefreshToken)
+	if refreshToken == "" {
+		return nil
+	}
+
+	if err := s.sessionStateStore().RevokeRefreshToken(ctx, hashRefreshToken(refreshToken)); err != nil {
+		return fmt.Errorf("auth.Logout: revoke refresh token: %w", err)
+	}
+
+	return nil
 }
 
 func validateUsername(username string) (string, error) {
@@ -255,4 +339,29 @@ func (s *service) accessTokenIssuer() func(*User, time.Time) (string, time.Time,
 		return s.issueAccessToken
 	}
 	return newAccessTokenIssuer("", 15*time.Minute, s.uuidGenerator())
+}
+
+func (s *service) refreshTokenIssuer() func(time.Time) (string, string, time.Time, error) {
+	if s.issueRefreshToken != nil {
+		return s.issueRefreshToken
+	}
+	return newRefreshTokenGenerator(30 * 24 * time.Hour)
+}
+
+func (s *service) sessionStateStore() SessionStore {
+	if s.sessionStore != nil {
+		return s.sessionStore
+	}
+	return noopSessionStore{}
+}
+
+func (s *service) recordFailedLogin(ctx context.Context, username string) error {
+	locked, err := s.sessionStateStore().RegisterFailedLogin(ctx, username, s.currentTime())
+	if err != nil {
+		return fmt.Errorf("auth.Login: register failed login: %w", err)
+	}
+	if locked {
+		return ErrAccountLocked
+	}
+	return ErrInvalidCredentials
 }
