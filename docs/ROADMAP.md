@@ -279,6 +279,8 @@ These are real features, but they should not block shipping:
 - media messages
 - better contact discovery privacy
 - moderation and compromise-response mechanics
+- environment and secret rotation policy
+- anti-spam baseline
 
 Notes:
 
@@ -288,6 +290,8 @@ Notes:
 - Media should come after text, likely starting with the simplest encrypted upload path rather than full-blown rich media.
 - Contact discovery privacy likely means moving beyond public username lookup toward one-time contact codes, invite links, or QR-based exchange.
 - Group moderation and compromise-response need explicit semantics before shipping: removing a member from a group is not enough if key material for the old membership is still valid.
+- Secret handling can stay simple in alpha, but production needs an explicit rotation policy for JWT signing keys, database credentials, and other service secrets.
+- Anti-spam should land before any public growth phase: rate limits are the first layer, but abuse scoring and message initiation controls likely follow.
 
 ## Deferred - Long Term
 
@@ -299,6 +303,9 @@ These are directionally good, but they are not immediate product work:
 - stronger metadata protection
 - safer group membership privacy
 - screenshot deterrence / capture-response features
+- transport resilience / anti-blocking strategy
+- scoped bot accounts and audience policy controls
+- anti-DDoS and abuse hardening
 - any payment or premium system
 
 Important notes:
@@ -307,6 +314,8 @@ Important notes:
 - Mesh networking is an architectural direction, not an alpha feature.
 - Multi-device support is a key-management project, not just a sync feature.
 - Screenshot handling is platform-specific and should be treated as a deterrence / response problem, not as a guaranteed protection primitive.
+- "Hard to block" is a more honest goal than "impossible to block"; anti-censorship work should focus on transport agility, fallback modes, and minimizing a unique traffic signature.
+- Bot and enterprise-style policy controls should stay an overlay on top of the core privacy model, not reshape the messenger around compliance-first assumptions.
 - Payments are explicitly deferred until the core messenger is usable by real people.
 
 ## Security Roadmap
@@ -344,6 +353,10 @@ These are worth revisiting later, but they should not block the current auth and
 - How should compromised-user response work in groups: remove only, remove + rekey, or full group re-issue?
 - Should group membership be readable to the server in v1 groups, or should encrypted membership lists become a v2 requirement?
 - Which screenshot / screen-recording mitigations are worth shipping per platform, and which should remain documented as non-guaranteed deterrents?
+- What is the minimum viable production secret rotation story for JWT keys, DB credentials, and provider secrets?
+- Which anti-blocking steps matter first after alpha: WSS hardening, transport fallback, proxies, Tor-friendly mode, or domain rotation?
+- What anti-spam / anti-DDoS controls belong in the backend before any public onboarding?
+- How should future bot accounts be scoped: by group, workspace, role, or policy audience, and how much region-based control is compatible with the privacy model?
 
 ## Product Philosophy Notes
 

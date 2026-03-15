@@ -96,6 +96,14 @@ curl http://localhost:8080/health
 # -> {"status":"ok"}
 ```
 
+Current auth endpoints during alpha:
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/me`
+
 ---
 
 ## Stopping Everything
@@ -223,7 +231,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for the MVP plan and feature sequencing.
 
 - [x] Project structure & CI/CD
 - [x] Server boots, health endpoint
-- [ ] Auth module (registration, login, JWT)
+- [ ] Auth module (registration, login, refresh/logout, JWT)
 - [ ] User profiles + public key publication
 - [ ] WebSocket hub (real-time messaging)
 - [ ] E2E encryption (X25519 + ChaCha20-Poly1305)

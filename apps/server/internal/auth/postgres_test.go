@@ -131,6 +131,41 @@ func TestFindUserByUsernameRejectsInvalidUUID(t *testing.T) {
 	}
 }
 
+func TestFindUserByIDSuccess(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	defer db.Close()
+
+	repo := &postgresRepository{db: db}
+	userID := uuid.New()
+	createdAt := time.Now().UTC().Round(time.Second)
+	updatedAt := createdAt.Add(time.Minute)
+
+	rows := sqlmock.NewRows([]string{"id", "username", "password_hash", "public_key", "created_at", "updated_at"}).
+		AddRow(userID.String(), "alice123", "hashed", "public-key", createdAt, updatedAt)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, username, password_hash, public_key, created_at, updated_at
+		FROM users
+		WHERE id = $1
+	`)).
+		WithArgs(userID).
+		WillReturnRows(rows)
+
+	user, err := repo.FindUserByID(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("FindUserByID() error = %v", err)
+	}
+	if user == nil {
+		t.Fatal("FindUserByID() = nil, want user")
+	}
+	if user.ID != userID {
+		t.Fatalf("user.ID = %v, want %v", user.ID, userID)
+	}
+}
+
 func TestFindInviteByCodeSuccess(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

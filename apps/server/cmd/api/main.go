@@ -14,6 +14,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/mavlevich/phantom/server/config"
 	"github.com/mavlevich/phantom/server/internal/auth"
@@ -39,10 +40,22 @@ func main() {
 	}
 	defer db.Close()
 
+	redisClient, err := openRedis(cfg.RedisURL)
+	if err != nil {
+		slog.Error("failed to connect redis", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		_ = redisClient.Close()
+	}()
+
 	authRepo := auth.NewPostgresRepository(db)
+	sessionStore := auth.NewRedisSessionStore(redisClient)
 	authService := auth.NewService(authRepo, auth.ServiceConfig{
-		JWTSecret: cfg.JWTSecret,
-		JWTExpiry: cfg.JWTExpiry,
+		JWTSecret:          cfg.JWTSecret,
+		JWTExpiry:          cfg.JWTExpiry,
+		RefreshTokenExpiry: cfg.RefreshTokenExpiry,
+		SessionStore:       sessionStore,
 	})
 
 	app := fiber.New(fiber.Config{
@@ -67,7 +80,13 @@ func main() {
 	})
 
 	api := app.Group("/api/v1")
-	auth.RegisterRoutes(api, authService)
+	auth.RegisterRoutes(api, authService, auth.RouteConfig{
+		AccessMiddleware:    auth.NewAccessMiddleware(cfg.JWTSecret, authRepo),
+		RegisterLimiter:     auth.NewAuthRateLimiter(sessionStore, "register", 5, time.Minute),
+		LoginLimiter:        auth.NewAuthRateLimiter(sessionStore, "login", 5, time.Minute),
+		SessionLimiter:      auth.NewAuthRateLimiter(sessionStore, "session", 20, time.Minute),
+		RefreshCookieSecure: cfg.IsProduction(),
+	})
 
 	// wsRouter := ws.NewRouter(hub)
 	// wsRouter.Register(app)
@@ -111,4 +130,22 @@ func openDatabase(databaseURL string) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+func openRedis(redisURL string) (*redis.Client, error) {
+	options, err := redis.ParseURL(redisURL)
+	if err != nil {
+		return nil, err
+	}
+
+	client := redis.NewClient(options)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := client.Ping(ctx).Err(); err != nil {
+		_ = client.Close()
+		return nil, err
+	}
+
+	return client, nil
 }
